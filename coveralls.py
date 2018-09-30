@@ -140,6 +140,8 @@ def gcov_source(gcov_file):
 			if split[0] == 'file':
 				if file is not None: result[filename] = file
 				filename = split[1].strip()
+				if not os.path.isabs(filename):
+					filename = os.path.abspath(os.path.join(args.bin_dir, filename))
 				file = [[], []]
 				continue
 

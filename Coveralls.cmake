@@ -67,7 +67,7 @@ if (COVERALLS)
 	add_custom_target(coveralls_generate
 		# Run lcov over the output and generate coveralls JSON
 		COMMAND ${PYTHON_EXECUTABLE}
-			"${PROJECT_SOURCE_DIR}/coveralls.py"
+			"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 			--gcov "${GCOV_EXECUTABLE}"
 			--git "${GIT_EXECUTABLE}"
 			--src_dir "${PROJECT_SOURCE_DIR}"
@@ -77,7 +77,7 @@ if (COVERALLS)
 			--out "${COVERALLS_FILE}"
 		DEPENDS
 			coveralls_test
-			"${PROJECT_SOURCE_DIR}/coveralls.py"
+			"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 		WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/gcov"
 		COMMENT "Generating coveralls output..."
 	)
