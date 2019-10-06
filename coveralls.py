@@ -16,7 +16,7 @@ parser.add_argument('--bin_dir', required=True, help='directory for generated fi
 parser.add_argument('--int_dir', required=True, help='directory for temporary gcov files')
 parser.add_argument('--dirs',    required=True, help='directory filters for relevant sources, separated with\':\'')
 parser.add_argument('--out',     required=True, help='output JSON file for Coveralls')
-args = parser.parse_args();
+args = parser.parse_args()
 args.dirs = args.dirs.split(':')
 for idx in range(len(args.dirs)):
 	dname = args.dirs[idx].replace('\\', os.sep).replace('/', os.sep)
@@ -44,7 +44,7 @@ def mkdir_p(path):
 
 def run(*args):
 	p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	out, err = p.communicate();
+	out, err = p.communicate()
 	return (out, err, p.returncode)
 
 def output(*args):
@@ -63,10 +63,8 @@ def gcov(dir_name, gcdas):
 def recurse(root, ext):
 	for dirname, ign, files in os.walk(root):
 		for f in files:
-			split = os.path.splitext(f)
-			if len(split) < 2 or split[1] != ext:
-				continue
-			yield os.path.join(dirname, f)
+			if f[-len(ext):] == ext:
+				yield os.path.join(dirname, f)
 
 def ENV(name):
 	if name in os.environ:
@@ -121,49 +119,40 @@ for gcda in recurse(os.path.abspath(args.bin_dir), '.gcno'):
 		gcda_dirs[dirn] = []
 	gcda_dirs[dirn].append(filen)
 
+def cov_version(tool):
+	out, err, retcode = run(tool, "--version")
+	if retcode: return (None, [0])
+	out = out.split('\n')
+	if out[0].split(' ', 1)[0] == 'gcov':
+		ver = [int(chunk) for chunk in out[0].split(' ')[-1].split('.')]
+		return ('gcov', ver)
+	return (None, [0])
+
+tool_id, version = cov_version(args.gcov)
+
+if tool_id == 'gcov':
+	import gcov
+	if version[0] < 9:
+		cov_tool = gcov.GCOV8()
+	else:
+		cov_tool = gcov.JSON1()
+else:
+	print >>sys.stderr, 'Unrecognized coverage tool:', tool_id, '.'.join([str(chunk) for chunk in version])
+	sys.exit(1)
+
 for dirn in gcda_dirs:
 	int_dir = os.path.relpath(dirn, args.bin_dir).replace(os.sep, '#')
 	int_dir = os.path.join(args.int_dir, int_dir)
 	mkdir_p(int_dir)
 	with cd(int_dir):
-		gcov(dirn, [os.path.join(dirn, filen) for filen in gcda_dirs[dirn]])
-
-def gcov_source(gcov_file):
-	result = {}
-	filename = None
-	file = None
-	with open(gcov_file) as src:
-		for line in src:
-			split = line.split(':', 1)
-			if len(split) < 2:
-				continue
-			if split[0] == 'file':
-				if file is not None: result[filename] = file
-				filename = split[1].strip()
-				if not os.path.isabs(filename):
-					filename = os.path.abspath(os.path.join(args.bin_dir, filename))
-				file = [[], []]
-				continue
-
-			if split[0] == 'function':
-				start, stop, count, name = split[1].split(',')
-				file[0].append((int(start), int(stop), int(count), name.strip()))
-				continue
-
-			if split[0] == 'lcount':
-				line, count, has_unexecuted = split[1].split(',')
-				file[1].append((int(line), int(count), int(has_unexecuted)))
-				continue
-
-		if file is not None: result[filename] = file
-	return result
+		cov_tool.run(args.gcov, dirn, [os.path.join(dirn, filen) for filen in gcda_dirs[dirn]])
 
 src_dir = os.path.abspath(args.src_dir)
 src_dir_len = len(src_dir)
 coverage = {}
 maps = {}
-for stats in recurse(args.int_dir, '.gcov'):
-	gcov_data = gcov_source(stats)
+for stats in recurse(args.int_dir, cov_tool.ext()):
+	gcov_data = cov_tool.stats(args.bin_dir, stats)
 	for src in gcov_data:
 		if src[:src_dir_len] != src_dir: continue
 		name = src[len(src_dir):]
