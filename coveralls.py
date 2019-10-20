@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+#!/usr/bin/env python3
 
 import os
 import errno
@@ -56,8 +56,8 @@ def git_log_format(fmt):
 def gcov(dir_name, gcdas):
 	out, err, code = run(args.gcov, '-l', '-i', '-p', '-o', dir_name, *gcdas)
 	if code:
-		print >>sys.stderr, err
-		print >>sys.stderr, 'error:', code
+		print(err, file=sys.stderr)
+		print('error:', code, file=sys.stderr)
 		sys.exit()
 
 def recurse(root, ext):
@@ -122,9 +122,9 @@ for gcda in recurse(os.path.abspath(args.bin_dir), '.gcno'):
 def cov_version(tool):
 	out, err, retcode = run(tool, "--version")
 	if retcode: return (None, [0])
-	out = out.split('\n')
-	if out[0].split(' ', 1)[0] == 'gcov':
-		ver = [int(chunk) for chunk in out[0].split(' ')[-1].split('.')]
+	out = out.split(b'\n')
+	if out[0].split(b' ', 1)[0] == b'gcov':
+		ver = [int(chunk) for chunk in out[0].split(b' ')[-1].split(b'.')]
 		return ('gcov', ver)
 	return (None, [0])
 
@@ -137,7 +137,7 @@ if tool_id == 'gcov':
 	else:
 		cov_tool = gcov.JSON1()
 else:
-	print >>sys.stderr, 'Unrecognized coverage tool:', tool_id, '.'.join([str(chunk) for chunk in version])
+	print('Unrecognized coverage tool:', tool_id, '.'.join([str(chunk) for chunk in version]), file=sys.stderr)
 	sys.exit(1)
 
 for dirn in gcda_dirs:
