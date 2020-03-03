@@ -1,14 +1,17 @@
 option(COVERALLS "Turn on coveralls support" OFF)
-option(COVERALLS_UPLOAD "Upload the generated coveralls json" ON)
+option(COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
+option(COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
 find_package(PythonInterp)
 
 if (COVERALLS)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage -lgcov")
 	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage -lgcov")
-	set(COVERALLS_FILE ${PROJECT_BINARY_DIR}/coveralls.json)
+	if (NOT DEFINED COVERALLS_FILE)
+		set(COVERALLS_FILE ${PROJECT_BINARY_DIR}/coveralls.json)
+	endif()
 
 	if (NOT COVERALLS_DIRS)
 		message(FATAL_ERROR "COVERALLS_DIRS not set. Aborting")
@@ -47,6 +50,7 @@ if (COVERALLS)
 		add_custom_target(coveralls_prepare)
 	endif()
 
+	if (COVERALLS_EXTERNAL_TESTS)
 	add_custom_target(coveralls_test
 		# Run tests and regenerate the counters
 		COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
@@ -54,6 +58,9 @@ if (COVERALLS)
 		WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 		COMMENT "Running all tests..."
 	)
+	else()
+	add_custom_target(coveralls_test)
+	endif()
 
 	set(JOIN_DIRS "")
 	foreach(DIR_NAME ${COVERALLS_DIRS})
