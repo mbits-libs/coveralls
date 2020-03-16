@@ -59,7 +59,9 @@ if (COVERALLS)
 		COMMENT "Running all tests..."
 	)
 	else()
-	add_custom_target(coveralls_test)
+	add_custom_target(coveralls_test
+		DEPENDS coveralls_prepare
+	)
 	endif()
 
 	set(JOIN_DIRS "")
@@ -68,6 +70,11 @@ if (COVERALLS)
 			set(JOIN_DIRS "${JOIN_DIRS}:")
 		endif()
 		set(JOIN_DIRS "${JOIN_DIRS}${DIR_NAME}")
+	endforeach()
+
+	set(JOIN_IGNORE_FILES)
+	foreach(FILE_MASK ${COVERALLS_IGNORE_FILES})
+		set(JOIN_IGNORE_FILES ${JOIN_IGNORE_FILES} --ignore-file "${FILE_MASK}")
 	endforeach()
 
 	message(STATUS "PYTHON_EXECUTABLE is: ${PYTHON_EXECUTABLE}")
@@ -82,6 +89,7 @@ if (COVERALLS)
 			--int_dir "${PROJECT_BINARY_DIR}/gcov"
 			--dirs "${JOIN_DIRS}"
 			--out "${COVERALLS_FILE}"
+			${JOIN_IGNORE_FILES}
 		DEPENDS
 			coveralls_test
 			"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"

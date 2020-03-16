@@ -7,15 +7,17 @@ import argparse
 import subprocess
 import json
 import hashlib
+from fnmatch import fnmatch
 
 parser = argparse.ArgumentParser(description='Gather GCOV data for Coveralls')
-parser.add_argument('--git',     required=True, help='path to the git binary')
-parser.add_argument('--gcov',    required=True, help='path to the gcov program')
-parser.add_argument('--src_dir', required=True, help='directory for source files')
-parser.add_argument('--bin_dir', required=True, help='directory for generated files')
-parser.add_argument('--int_dir', required=True, help='directory for temporary gcov files')
-parser.add_argument('--dirs',    required=True, help='directory filters for relevant sources, separated with\':\'')
-parser.add_argument('--out',     required=True, help='output JSON file for Coveralls')
+parser.add_argument('--git',          required=True,  help='path to the git binary')
+parser.add_argument('--gcov',         required=True,  help='path to the gcov program')
+parser.add_argument('--src_dir',      required=True,  help='directory for source files')
+parser.add_argument('--bin_dir',      required=True,  help='directory for generated files')
+parser.add_argument('--int_dir',      required=True,  help='directory for temporary gcov files')
+parser.add_argument('--dirs',         required=True,  help='directory filters for relevant sources, separated with\':\'')
+parser.add_argument('--out',          required=True,  help='output JSON file for Coveralls')
+parser.add_argument('--ignore-files', required=False, help='adds a glob.glob mask for files to ignore', action='append', metavar='MASK')
 args = parser.parse_args()
 args.dirs = args.dirs.split(':')
 for idx in range(len(args.dirs)):
@@ -163,6 +165,11 @@ for stats in recurse(args.int_dir, cov_tool.ext()):
 			if len(dname) < len(name) and name[:len(dname)] == dname:
 				relevant = True
 				break
+		if relevant:
+			for ign in args.ignore_files:
+				if fnmatch(name, ign):
+					relevant = False
+					break
 		if not relevant: continue
 		fns, lines = gcov_data[src]
 		for ln in lines:
