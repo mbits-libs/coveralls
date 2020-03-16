@@ -58,13 +58,13 @@ There are two options introduced by the script.
 
 By default, no Coveralls targets are available. When building, e.g. on Travis CI, cmake should be configured with
 
-```
-[...] -DCOVERALLS=ON [...]
+```shell
+[...] -DCOVERALLS=ON -DCOVERALLS_UPLOAD=ON [...]
 ```
 
-When building for local analysis of coverage (e.g. to use with `get_cover.py`), upload may be turned off:
+When building for local analysis of coverage (e.g. to use with `get_cover.py`), upload may be turned off (the default):
 
-```
+```shell
 [...] -DCOVERALLS=ON -DCOVERALLS_UPLOAD=OFF [...]
 ```
 

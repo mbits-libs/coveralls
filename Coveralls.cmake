@@ -2,7 +2,7 @@ option(COVERALLS "Turn on coveralls support" OFF)
 option(COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
 option(COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
-find_package(PythonInterp)
+find_package(Python3)
 
 if (COVERALLS)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -77,10 +77,10 @@ if (COVERALLS)
 		set(JOIN_IGNORE_FILES ${JOIN_IGNORE_FILES} --ignore-file "${FILE_MASK}")
 	endforeach()
 
-	message(STATUS "PYTHON_EXECUTABLE is: ${PYTHON_EXECUTABLE}")
+	message(STATUS "Python3_EXECUTABLE is: ${Python3_EXECUTABLE}")
 	add_custom_target(coveralls_generate
 		# Run lcov over the output and generate coveralls JSON
-		COMMAND ${PYTHON_EXECUTABLE}
+		COMMAND ${Python3_EXECUTABLE}
 			"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 			--gcov "${GCOV_EXECUTABLE}"
 			--git "${GIT_EXECUTABLE}"
