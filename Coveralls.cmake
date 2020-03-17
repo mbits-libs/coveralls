@@ -52,15 +52,15 @@ if (COVERALLS)
 
 	if (COVERALLS_EXTERNAL_TESTS)
 	add_custom_target(coveralls_test
+		DEPENDS coveralls_prepare
+	)
+	else()
+	add_custom_target(coveralls_test
 		# Run tests and regenerate the counters
 		COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
 		DEPENDS coveralls_prepare
 		WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 		COMMENT "Running all tests..."
-	)
-	else()
-	add_custom_target(coveralls_test
-		DEPENDS coveralls_prepare
 	)
 	endif()
 
