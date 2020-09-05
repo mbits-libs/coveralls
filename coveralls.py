@@ -17,7 +17,9 @@ parser.add_argument('--bin_dir',      required=True,  help='directory for genera
 parser.add_argument('--int_dir',      required=True,  help='directory for temporary gcov files')
 parser.add_argument('--dirs',         required=True,  help='directory filters for relevant sources, separated with\':\'')
 parser.add_argument('--out',          required=True,  help='output JSON file for Coveralls')
-parser.add_argument('--ignore-files', required=False, help='adds a glob.glob mask for files to ignore', action='append', metavar='MASK')
+parser.add_argument('--ignore-files', required=False, help='adds a glob.glob mask for files to ignore',
+                                      action='append', metavar='MASK', default=[])
+
 args = parser.parse_args()
 args.dirs = args.dirs.split(':')
 for idx in range(len(args.dirs)):

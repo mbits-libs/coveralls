@@ -45,7 +45,7 @@ make -j`nproc` && make coveralls
 or
 
 ```shell
-ninja -j`nproc` && ninja coveralls
+ninja && ninja coveralls
 ```
 
 ### Options
@@ -54,7 +54,7 @@ There are two options introduced by the script.
 
 **COVERALLS** turns on coveralls support and allows to use the targets defined in the script. **OFF** by default.
 
-**COVERALLS_UPLOAD** creates a target, which will upload the generated JSON to Coveralls site. **ON** by default, but used only when `COVERALLS` is `ON` as well.
+**COVERALLS_UPLOAD** creates a target, which will upload the generated JSON to Coveralls site. **OFF** by default, but used only when `COVERALLS` is `ON` as well.
 
 By default, no Coveralls targets are available. When building, e.g. on Travis CI, cmake should be configured with
 
@@ -62,7 +62,13 @@ By default, no Coveralls targets are available. When building, e.g. on Travis CI
 [...] -DCOVERALLS=ON -DCOVERALLS_UPLOAD=ON [...]
 ```
 
-When building for local analysis of coverage (e.g. to use with `get_cover.py`), upload may be turned off (the default):
+When building for local analysis of coverage (e.g. to use with `get_cover.py`), upload may be turned off with either:
+
+```shell
+[...] -DCOVERALLS=ON [...]
+```
+
+or more explicit:
 
 ```shell
 [...] -DCOVERALLS=ON -DCOVERALLS_UPLOAD=OFF [...]
