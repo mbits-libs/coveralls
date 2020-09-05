@@ -21,6 +21,8 @@ Curl is used to upload the JSON to Coveralls site. Needed only, if configured wi
 The tool contains a CMake script for easy configuration. Provided the tool was added as a submodule under `tools`, you should add something like this to the root CMakeLists.txt:
 
 ```cmake
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 foreach(MOD one two three)
   list(APPEND COVERALLS_DIRS
     libs/lib${MOD}/include/${MOD}

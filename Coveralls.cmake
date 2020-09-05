@@ -2,8 +2,6 @@ option(COVERALLS "Turn on coveralls support" OFF)
 option(COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
 option(COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
-find_package(Python3)
-
 if (COVERALLS)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -98,7 +96,7 @@ if (COVERALLS)
 	)
 
 	if (COVERALLS_UPLOAD)
-		message("COVERALLS UPLOAD: ON")
+		message(STATUS "COVERALLS UPLOAD: ON")
 
 		find_program(CURL_EXECUTABLE curl)
 
@@ -117,7 +115,7 @@ if (COVERALLS)
 
 		add_custom_target(coveralls DEPENDS coveralls_upload)
 	else()
-		message("COVERALLS UPLOAD: OFF")
+		message(STATUS "COVERALLS UPLOAD: OFF")
 		add_custom_target(coveralls DEPENDS coveralls_generate)
 	endif()
 endif()
