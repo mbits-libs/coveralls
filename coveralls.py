@@ -123,7 +123,10 @@ def cov_version(tool):
 	if retcode: return (None, [0])
 	out = out.split(b'\n')
 	if out[0].split(b' ', 1)[0] == b'gcov':
-		ver = [int(chunk) for chunk in out[0].split(b' ')[-1].split(b'.')]
+		# gcov (<space-having comment>) <version>, or
+		# gcov (<space-having comment>) <version> <date> (prerelease) [gcc-?-branch revision <rev>]
+		bver = out[0].split(b')', 1)[1].lstrip().split(b' ')[0]
+		ver = [int(chunk) for chunk in bver.split(b'.')]
 		return ('gcov', ver)
 	return (None, [0])
 
