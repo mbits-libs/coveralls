@@ -12,8 +12,8 @@ class Base:
 		p = subprocess.Popen([tool, '-l', '-i', '-p', '-o', dirn] + files, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		out, err = p.communicate()
 		if p.returncode:
-			print >>sys.stderr, err
-			print >>sys.stderr, 'error:', p.returncode
+			print(err, file=sys.stderr)
+			print('error:', p.returncode, file=sys.stderr)
 			sys.exit()
 
 	def ext(self): pass
