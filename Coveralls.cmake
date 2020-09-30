@@ -1,25 +1,25 @@
-option(COVERALLS "Turn on coveralls support" OFF)
-option(COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
-option(COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
+option(${COVERALLS_PREFIX}COVERALLS "Turn on coveralls support" OFF)
+option(${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
+option(${COVERALLS_PREFIX}COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
-if (COVERALLS)
+if (${COVERALLS_PREFIX}COVERALLS)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage -lgcov")
 	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage -lgcov")
-	if (NOT DEFINED COVERALLS_FILE)
-		set(COVERALLS_FILE ${PROJECT_BINARY_DIR}/coveralls.json)
+	if (NOT DEFINED ${COVERALLS_PREFIX}COVERALLS_FILE)
+		set(${COVERALLS_PREFIX}COVERALLS_FILE ${PROJECT_BINARY_DIR}/coveralls.json)
 	endif()
 
-	if (NOT COVERALLS_DIRS)
-		message(FATAL_ERROR "COVERALLS_DIRS not set. Aborting")
+	if (NOT ${COVERALLS_PREFIX}COVERALLS_DIRS)
+		message(FATAL_ERROR "${COVERALLS_PREFIX}COVERALLS_DIRS not set. Aborting")
 	endif()
 
-	string(REPLACE "." ";" COVERALLS_CXX_VER ${CMAKE_CXX_COMPILER_VERSION})
-	list(GET COVERALLS_CXX_VER 0 COVERALLS_CXX_VER_MAJOR)
-	list(GET COVERALLS_CXX_VER 1 COVERALLS_CXX_VER_MINOR)
+	string(REPLACE "." ";" ${COVERALLS_PREFIX}COVERALLS_CXX_VER ${CMAKE_CXX_COMPILER_VERSION})
+	list(GET ${COVERALLS_PREFIX}COVERALLS_CXX_VER 0 ${COVERALLS_PREFIX}COVERALLS_CXX_VER_MAJOR)
+	list(GET ${COVERALLS_PREFIX}COVERALLS_CXX_VER 1 ${COVERALLS_PREFIX}COVERALLS_CXX_VER_MINOR)
 
-	find_program(GCOV_EXECUTABLE NAMES gcov-${COVERALLS_CXX_VER_MAJOR}.${COVERALLS_CXX_VER_MINOR} gcov-${COVERALLS_CXX_VER_MAJOR} gcov)
+	find_program(GCOV_EXECUTABLE NAMES gcov-${${COVERALLS_PREFIX}COVERALLS_CXX_VER_MAJOR}.${${COVERALLS_PREFIX}COVERALLS_CXX_VER_MINOR} gcov-${${COVERALLS_PREFIX}COVERALLS_CXX_VER_MAJOR} gcov)
 	if (NOT GCOV_EXECUTABLE)
 		message(FATAL_ERROR "gcov not found! Aborting...")
 	endif()
@@ -48,7 +48,7 @@ if (COVERALLS)
 		add_custom_target(coveralls_prepare)
 	endif()
 
-	if (COVERALLS_EXTERNAL_TESTS)
+	if (${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS)
 	add_custom_target(coveralls_test
 		DEPENDS coveralls_prepare
 	)
@@ -63,7 +63,7 @@ if (COVERALLS)
 	endif()
 
 	set(JOIN_DIRS "")
-	foreach(DIR_NAME ${COVERALLS_DIRS})
+	foreach(DIR_NAME ${${COVERALLS_PREFIX}COVERALLS_DIRS})
 		if (JOIN_DIRS)
 			set(JOIN_DIRS "${JOIN_DIRS}:")
 		endif()
@@ -71,7 +71,7 @@ if (COVERALLS)
 	endforeach()
 
 	set(JOIN_IGNORE_FILES)
-	foreach(FILE_MASK ${COVERALLS_IGNORE_FILES})
+	foreach(FILE_MASK ${${COVERALLS_PREFIX}COVERALLS_IGNORE_FILES})
 		set(JOIN_IGNORE_FILES ${JOIN_IGNORE_FILES} --ignore-file "${FILE_MASK}")
 	endforeach()
 
@@ -86,7 +86,7 @@ if (COVERALLS)
 			--bin_dir "${PROJECT_BINARY_DIR}"
 			--int_dir "${PROJECT_BINARY_DIR}/gcov"
 			--dirs "${JOIN_DIRS}"
-			--out "${COVERALLS_FILE}"
+			--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
 			${JOIN_IGNORE_FILES}
 		DEPENDS
 			coveralls_test
@@ -95,8 +95,8 @@ if (COVERALLS)
 		COMMENT "Generating coveralls output..."
 	)
 
-	if (COVERALLS_UPLOAD)
-		message(STATUS "COVERALLS UPLOAD: ON")
+	if (${COVERALLS_PREFIX}COVERALLS_UPLOAD)
+		message(STATUS "${COVERALLS_PREFIX}COVERALLS UPLOAD: ON")
 
 		find_program(CURL_EXECUTABLE curl)
 
@@ -106,7 +106,7 @@ if (COVERALLS)
 
 		add_custom_target(coveralls_upload
 			# Upload the JSON to coveralls.
-			COMMAND ${CURL_EXECUTABLE} -S -F "json_file=@${COVERALLS_FILE}" https://coveralls.io/api/v1/jobs
+			COMMAND ${CURL_EXECUTABLE} -S -F "json_file=@${${COVERALLS_PREFIX}COVERALLS_FILE}" https://coveralls.io/api/v1/jobs
 
 			DEPENDS coveralls_generate
 
@@ -115,7 +115,7 @@ if (COVERALLS)
 
 		add_custom_target(coveralls DEPENDS coveralls_upload)
 	else()
-		message(STATUS "COVERALLS UPLOAD: OFF")
+		message(STATUS "${COVERALLS_PREFIX}COVERALLS UPLOAD: OFF")
 		add_custom_target(coveralls DEPENDS coveralls_generate)
 	endif()
 endif()
