@@ -7,11 +7,14 @@ import argparse
 import subprocess
 import json
 import hashlib
-from fnmatch import fnmatch
 
 parser = argparse.ArgumentParser(description='Gather GCOV data for Coveralls')
-parser.add_argument('--gcov', metavar='PATH', required=True,
-                    help='path to the gcov program')
+handler = parser.add_mutually_exclusive_group(required=True)
+handler.add_argument('--cobertura',
+                     help='look for .xml cobertura files instead of .gcno gcov files',
+                     action='store_true')
+handler.add_argument('--gcov', metavar='PATH',
+                     help='path to the gcov program')
 parser.add_argument('--git', metavar='PATH', required=True,
                     help='path to the git binary')
 parser.add_argument('--src_dir', metavar='DIR', required=True,
@@ -150,7 +153,10 @@ def cov_version(tool):
     return (None, [0])
 
 
-tool_id, version = cov_version(args.gcov)
+if args.gcov is None and args.cobertura:
+    tool_id, version = 'cobertura', ['xml']
+else:
+    tool_id, version = cov_version(args.gcov)
 
 if tool_id == 'gcov':
     import gcov
@@ -158,6 +164,9 @@ if tool_id == 'gcov':
         cov_tool = gcov.GCOV8()
     else:
         cov_tool = gcov.JSON1()
+elif tool_id == 'cobertura':
+    import cobertura
+    cov_tool = cobertura.CoberturaXML(args.cobertura)
 else:
     print('Unrecognized coverage tool:', tool_id, '.'.join(
         [str(chunk) for chunk in version]), file=sys.stderr)
@@ -197,6 +206,9 @@ for stats in recurse(args.int_dir, cov_tool.ext()):
         if not relevant:
             continue
         fns, lines = gcov_data[src]
+        # Build the report with generic paths
+        if os.sep != '/':
+            name = name.replace(os.sep, '/')
         for ln in lines:
             if name not in coverage:
                 coverage[name] = {}
