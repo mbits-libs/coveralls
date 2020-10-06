@@ -108,6 +108,12 @@ if job_id:
     service = 'travis-ci'
     sys.stdout.write(
         "Preparing Coveralls for Travis-CI job {}.\n".format(job_id))
+else:
+    job_id = ENV('APPVEYOR_JOB_ID')
+    if job_id:
+        service = 'appveyor'
+        sys.stdout.write(
+            "Preparing Coveralls for AppVeyor job {}.\n".format(job_id))
 
 JSON = {
     'service_name': service,
