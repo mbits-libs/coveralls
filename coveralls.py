@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-import os
-import errno
-import sys
 import argparse
-import subprocess
-import json
+import errno
 import hashlib
+import json
+import os
+import subprocess
+import sys
+from fnmatch import fnmatch
 
 parser = argparse.ArgumentParser(description='Gather GCOV data for Coveralls')
 handler = parser.add_mutually_exclusive_group(required=True)
