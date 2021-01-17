@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 from fnmatch import fnmatch
 
 parser = argparse.ArgumentParser(description='Gather GCOV data for Coveralls')
@@ -93,14 +94,24 @@ def ENV(name):
         return ''
 
 
-def file_md5(path):
+def file_md5_excl(path):
     m = hashlib.md5()
     lines = 0
+    excludes = []
+    exclude = False
+    inside_exclude = False
     with open(path, 'rb') as f:
         for line in f:
             m.update(line)
+            if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
+                inside_exclude = False
+            elif re.search(b"(G|L|GR)COV_EXCL_START", line):
+                inside_exclude = True
+
+            if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
+                excludes.append(lines)
             lines += 1
-    return (m.hexdigest(), lines)
+    return (m.hexdigest(), lines, excludes)
 
 
 job_id = ENV('TRAVIS_JOB_ID')
@@ -226,11 +237,13 @@ for stats in recurse(args.int_dir, cov_tool.ext()):
 
 for src in sorted(coverage.keys()):
     lines = coverage[src]
-    digest, line_count = file_md5(maps[src])
+    digest, line_count, excl = file_md5_excl(maps[src])
     size = max(line_count, max(lines.keys()))
     cvg = [None] * size
     for line in lines:
         cvg[line-1] = lines[line]
+    for line in excl:
+        cvg[line] = None
 
     JSON['source_files'].append({
         'name': src,
