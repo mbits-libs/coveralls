@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import errno
 import hashlib
 import json
 import os
@@ -227,22 +226,41 @@ for stats in recurse(args.int_dir, cov_tool.ext()):
         # Build the report with generic paths
         if os.sep != '/':
             name = name.replace(os.sep, '/')
-        for ln in lines:
+        for line, count, _ in lines:
             if name not in coverage:
                 coverage[name] = {}
                 maps[name] = src
-            if ln[0] not in coverage[name]:
-                coverage[name][ln[0]] = 0
-            coverage[name][ln[0]] += ln[1]
+            if line not in coverage[name]:
+                coverage[name][line] = 0
+            coverage[name][line] += count
+
+relevant = 0
+covered = 0
+excluded = 0
+excluded_visited = 0
+excluded_unvisited = 0
 
 for src in sorted(coverage.keys()):
     lines = coverage[src]
     digest, line_count, excl = file_md5_excl(maps[src])
     size = max(line_count, max(lines.keys()))
     cvg = [None] * size
+    relevant += len(lines)
     for line in lines:
-        cvg[line-1] = lines[line]
+        val = lines[line]
+        if val:
+            covered += 1
+        cvg[line-1] = val
+    excluded += len(excl)
     for line in excl:
+        val = cvg[line]
+        if val is not None:
+            relevant -= 1
+            if not val:
+                excluded_unvisited += 1
+            else:
+                excluded_visited += 1
+                covered -= 1
         cvg[line] = None
 
     JSON['source_files'].append({
@@ -253,3 +271,19 @@ for src in sorted(coverage.keys()):
 
 with open(args.out, 'w') as j:
     json.dump(JSON, j)
+
+percentage = int(covered*10000 / relevant + 0.5) / 100
+print("-- Coverage reported: {}/{} ({}%)".format(covered, relevant, percentage))
+
+if excluded:
+    def counted(counter, when_one, otherwise):
+        if counter == 0:
+            return when_one.format(counter)
+        return otherwise.format(counter)
+    excl_str = counted(excluded, "one line", "{} lines")
+    print("-- Excluded:          {} ({} unvisited)".format(excl_str, excluded_unvisited))
+    relevant += excluded_unvisited + excluded_visited
+    covered += excluded_visited
+    percentage = int(covered*10000 / relevant + 0.5) / 100
+    print(
+        "-- Revised coverage:  {}/{} ({}%)".format(covered, relevant, percentage))

@@ -46,6 +46,7 @@ class CoberturaXML:
         if packages is None:
             return {}
 
+        diskname = None
         if sources is not None:
             diskname = diskname_from_xml(sources)
         if diskname is None:
