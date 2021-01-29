@@ -34,25 +34,27 @@ if (${COVERALLS_PREFIX}COVERALLS)
 	find_package(Git)
 
 	if (UNIX)
-	add_custom_target(coveralls_clean_counters
-		# Reset all counters
-		COMMAND find -name '*.gcda' -exec rm {} '\;'
-		WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-		COMMENT "Removing GCDA counters..."
-	)
-	add_custom_target(coveralls_remove_intermediate_files
-		COMMAND rm -rf gcov
-		COMMAND mkdir -p gcov
-		WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-		COMMENT "Preparing for gcov..."
-	)
-	add_custom_target(coveralls_prepare
-		DEPENDS
-			coveralls_clean_counters
-			coveralls_remove_intermediate_files
+		add_custom_target(coveralls_clean_counters
+			# Reset all counters
+			COMMAND find -name '*.gcda' -exec rm {} '\;'
+			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+			COMMENT "Removing GCDA counters..."
 		)
+		add_custom_target(coveralls_remove_intermediate_files
+			COMMAND rm -rf gcov
+			COMMAND mkdir -p gcov
+			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+			COMMENT "Preparing for gcov..."
+		)
+		add_custom_target(coveralls_prepare
+			DEPENDS
+				coveralls_clean_counters
+				coveralls_remove_intermediate_files
+			)
+		set_target_properties(coveralls_clean_counters coveralls_remove_intermediate_files coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
 	else()
 		add_custom_target(coveralls_prepare)
+		set_target_properties(coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
 	endif()
 
 	if (${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS)
@@ -171,10 +173,13 @@ if (${COVERALLS_PREFIX}COVERALLS)
 
 			WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 			COMMENT "Uploading coveralls output...")
+		set_target_properties(coveralls_upload PROPERTIES FOLDER "Coveralls Targets")
 
 		add_custom_target(coveralls DEPENDS coveralls_upload)
 	else()
 		message(STATUS "${COVERALLS_PREFIX}COVERALLS UPLOAD: OFF")
 		add_custom_target(coveralls DEPENDS coveralls_generate)
 	endif()
+
+	set_target_properties(coveralls coveralls_test coveralls_generate PROPERTIES FOLDER "Coveralls Targets")
 endif()
