@@ -108,7 +108,7 @@ def file_md5_excl(path):
                 inside_exclude = True
 
             if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
-                excludes.append(lines)
+                excludes.append([lines, line.decode('UTF-8').rstrip()])
             lines += 1
     return (m.hexdigest(), lines, excludes)
 
@@ -239,6 +239,7 @@ covered = 0
 excluded = 0
 excluded_visited = 0
 excluded_unvisited = 0
+patches = []
 
 for src in sorted(coverage.keys()):
     lines = coverage[src]
@@ -252,7 +253,8 @@ for src in sorted(coverage.keys()):
             covered += 1
         cvg[line-1] = val
     excluded += len(excl)
-    for line in excl:
+    patch_lines = []
+    for line, text in excl:
         val = cvg[line]
         if val is not None:
             relevant -= 1
@@ -262,6 +264,9 @@ for src in sorted(coverage.keys()):
                 excluded_visited += 1
                 covered -= 1
         cvg[line] = None
+        patch_lines.append((line, str(val) if val is not None else '', text))
+    if len(patch_lines):
+        patches.append((src, patch_lines))
 
     JSON['source_files'].append({
         'name': src,
@@ -273,7 +278,7 @@ with open(args.out, 'w') as j:
     json.dump(JSON, j)
 
 percentage = int(covered*10000 / relevant + 0.5) / 100
-print("-- Coverage reported: {}/{} ({}%)".format(covered, relevant, percentage))
+print("-- Coverage reported:      {}/{} ({}%)".format(covered, relevant, percentage))
 
 if excluded:
     def counted(counter, when_one, otherwise):
@@ -281,9 +286,26 @@ if excluded:
             return when_one.format(counter)
         return otherwise.format(counter)
     excl_str = counted(excluded, "one line", "{} lines")
-    print("-- Excluded:          {} ({} unvisited)".format(excl_str, excluded_unvisited))
+    unv_str = counted(excluded_unvisited, "one line", "{} lines")
+    print("-- Excluded:               {}".format(excl_str))
+    print("-- Excluded never visited: {}".format(unv_str))
     relevant += excluded_unvisited + excluded_visited
     covered += excluded_visited
     percentage = int(covered*10000 / relevant + 0.5) / 100
     print(
-        "-- Revised coverage:  {}/{} ({}%)".format(covered, relevant, percentage))
+        "-- Revised coverage:       {}/{} ({}%)".format(covered, relevant, percentage))
+
+    counter_width = 0
+    for file, lines in patches:
+        for linno, count, line in lines:
+            length = len(count)
+            if length > counter_width: counter_width = length
+
+    for file, lines in patches:
+        print("--   {}".format(file))
+        prev = -10
+        for num, counter, line in lines:
+            if num - prev > 1:
+                print("     @ {} @".format(num))
+            prev = num
+            print("     {:>{}} | {}".format(counter, counter_width, line))
