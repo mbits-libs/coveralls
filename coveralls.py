@@ -277,7 +277,7 @@ for src in sorted(coverage.keys()):
 with open(args.out, 'w') as j:
     json.dump(JSON, j)
 
-percentage = int(covered*10000 / relevant + 0.5) / 100
+percentage = int(covered*10000 / relevant + 0.5) / 100 if relevant else 0
 print("-- Coverage reported:      {}/{} ({}%)".format(covered, relevant, percentage))
 
 if excluded:
