@@ -1,5 +1,5 @@
 option(${COVERALLS_PREFIX}COVERALLS "Turn on coveralls support" OFF)
-option(${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS "Create an empty coveralls_test" OFF)
+option(${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS "Create an empty ${COVERALLS_PREFIX}coveralls_test" OFF)
 option(${COVERALLS_PREFIX}COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
 if (${COVERALLS_PREFIX}COVERALLS)
@@ -34,33 +34,37 @@ if (${COVERALLS_PREFIX}COVERALLS)
 	find_package(Git)
 
 	if (UNIX)
-		add_custom_target(coveralls_clean_counters
+		add_custom_target(${COVERALLS_PREFIX}coveralls_clean_counters
 			# Reset all counters
 			COMMAND find -name '*.gcda' -exec rm {} '\;'
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 			COMMENT "Removing GCDA counters..."
 		)
-		add_custom_target(coveralls_remove_intermediate_files
+		add_custom_target(${COVERALLS_PREFIX}coveralls_remove_intermediate_files
 			COMMAND rm -rf gcov
 			COMMAND mkdir -p gcov
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 			COMMENT "Preparing for gcov..."
 		)
-		add_custom_target(coveralls_prepare
+		add_custom_target(${COVERALLS_PREFIX}coveralls_prepare
 			DEPENDS
-				coveralls_clean_counters
-				coveralls_remove_intermediate_files
+				${COVERALLS_PREFIX}coveralls_clean_counters
+				${COVERALLS_PREFIX}coveralls_remove_intermediate_files
 			)
-		set_target_properties(coveralls_clean_counters coveralls_remove_intermediate_files coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
+		set_target_properties(
+			${COVERALLS_PREFIX}coveralls_clean_counters
+			${COVERALLS_PREFIX}coveralls_remove_intermediate_files
+			${COVERALLS_PREFIX}coveralls_prepare
+			PROPERTIES FOLDER "Coveralls Targets")
 	else()
-		add_custom_target(coveralls_prepare)
-		set_target_properties(coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
+		add_custom_target(${COVERALLS_PREFIX}coveralls_prepare)
+		set_target_properties(${COVERALLS_PREFIX}coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
 	endif()
 
 	if (${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS)
 		message(STATUS "COVERALLS_EXTERNAL_TESTS")
-		add_custom_target(coveralls_test
-			DEPENDS coveralls_prepare
+		add_custom_target(${COVERALLS_PREFIX}coveralls_test
+			DEPENDS ${COVERALLS_PREFIX}coveralls_prepare
 		)
 	elseif(OCC_EXECUTABLE)
 		if (NOT ${COVERALLS_PREFIX}COVERALLS_CONFIGURATION)
@@ -77,7 +81,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 		endforeach()
 	
 
-		add_custom_target(coveralls_test
+		add_custom_target(${COVERALLS_PREFIX}coveralls_test
 			# Run tests and regenerate the counters
 			COMMAND "${OCC_EXECUTABLE}" -q
 				--working_dir "${DOS_PROJECT_BINARY_DIR}"
@@ -86,16 +90,16 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				--cover_children
 				--
 				"${DOS_CMAKE_CTEST_COMMAND}" --output-on-failure -C "${${COVERALLS_PREFIX}COVERALLS_CONFIGURATION}"
-			DEPENDS coveralls_prepare
+			DEPENDS ${COVERALLS_PREFIX}coveralls_prepare
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 			COMMENT "Running all tests (through OpenCppCoverage)..."
 			VERBATIM
 		)
 	else()
-		add_custom_target(coveralls_test
+		add_custom_target(${COVERALLS_PREFIX}coveralls_test
 			# Run tests and regenerate the counters
 			COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-			DEPENDS coveralls_prepare
+			DEPENDS ${COVERALLS_PREFIX}coveralls_prepare
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
 			COMMENT "Running all tests..."
 			VERBATIM
@@ -117,7 +121,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 
 	message(STATUS "Python3_EXECUTABLE is: ${Python3_EXECUTABLE}")
 	if(OCC_EXECUTABLE)
-		add_custom_target(coveralls_generate
+		add_custom_target(${COVERALLS_PREFIX}coveralls_generate
 			# Run python over the output and generate coveralls JSON
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
@@ -130,13 +134,13 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
 				${JOIN_IGNORE_FILES}
 			DEPENDS
-				coveralls_test
+				${COVERALLS_PREFIX}coveralls_test
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/gcov"
 			COMMENT "Generating coveralls output..."
 		)
 	else()
-		add_custom_target(coveralls_generate
+		add_custom_target(${COVERALLS_PREFIX}coveralls_generate
 			# Run gcov over the output and generate coveralls JSON
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
@@ -149,7 +153,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
 				${JOIN_IGNORE_FILES}
 			DEPENDS
-				coveralls_test
+				${COVERALLS_PREFIX}coveralls_test
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 			WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/gcov"
 			COMMENT "Generating coveralls output..."
@@ -165,21 +169,25 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			message(FATAL_ERROR "Coveralls: curl not found! Aborting")
 		endif()
 
-		add_custom_target(coveralls_upload
+		add_custom_target(${COVERALLS_PREFIX}coveralls_upload
 			# Upload the JSON to coveralls.
 			COMMAND ${CURL_EXECUTABLE} -S -F "json_file=@${${COVERALLS_PREFIX}COVERALLS_FILE}" https://coveralls.io/api/v1/jobs
 
-			DEPENDS coveralls_generate
+			DEPENDS ${COVERALLS_PREFIX}coveralls_generate
 
 			WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 			COMMENT "Uploading coveralls output...")
-		set_target_properties(coveralls_upload PROPERTIES FOLDER "Coveralls Targets")
+		set_target_properties(${COVERALLS_PREFIX}coveralls_upload PROPERTIES FOLDER "Coveralls Targets")
 
-		add_custom_target(coveralls DEPENDS coveralls_upload)
+		add_custom_target(${COVERALLS_PREFIX}coveralls DEPENDS ${COVERALLS_PREFIX}coveralls_upload)
 	else()
 		message(STATUS "${COVERALLS_PREFIX}COVERALLS UPLOAD: OFF")
-		add_custom_target(coveralls DEPENDS coveralls_generate)
+		add_custom_target(${COVERALLS_PREFIX}coveralls DEPENDS ${COVERALLS_PREFIX}coveralls_generate)
 	endif()
 
-	set_target_properties(coveralls coveralls_test coveralls_generate PROPERTIES FOLDER "Coveralls Targets")
+	set_target_properties(
+		${COVERALLS_PREFIX}coveralls
+		${COVERALLS_PREFIX}coveralls_test
+		${COVERALLS_PREFIX}coveralls_generate
+		PROPERTIES FOLDER "Coveralls Targets")
 endif()
