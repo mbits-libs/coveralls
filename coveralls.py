@@ -113,18 +113,23 @@ def file_md5_excl(path):
     return (m.hexdigest(), lines, excludes)
 
 
-job_id = ENV('TRAVIS_JOB_ID')
+services = [
+    ('TRAVIS_JOB_ID', 'travis-ci', 'Travis-CI'),
+    ('APPVEYOR_JOB_ID', 'appveyor', 'AppVeyor'),
+    ('GITHUB_RUN_ID', 'github', 'GitHub Workflows'),
+]
+
+job_id = ''
 service = ''
-if job_id:
-    service = 'travis-ci'
+for varname, service_id, service_name in services:
+    job_id = ENV(varname)
+    if not job_id:
+        continue
+
+    service = service_id
     sys.stdout.write(
-        "Preparing Coveralls for Travis-CI job {}.\n".format(job_id))
-else:
-    job_id = ENV('APPVEYOR_JOB_ID')
-    if job_id:
-        service = 'appveyor'
-        sys.stdout.write(
-            "Preparing Coveralls for AppVeyor job {}.\n".format(job_id))
+        "Preparing Coveralls for {} job {}.\n".format(service_name, job_id))
+    break
 
 JSON = {
     'service_name': service,
@@ -299,7 +304,8 @@ if excluded:
     for file, lines in patches:
         for linno, count, line in lines:
             length = len(count)
-            if length > counter_width: counter_width = length
+            if length > counter_width:
+                counter_width = length
 
     for file, lines in patches:
         print("--   {}".format(file))
