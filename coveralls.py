@@ -31,6 +31,9 @@ parser.add_argument('--out', metavar='JSON', required=True,
 parser.add_argument('--ignore-files', required=False,
                     help='adds a glob.glob mask for files to ignore',
                     action='append', metavar='MASK', default=[])
+parser.add_argument('--debug', required=False,
+                    help='prints JSON, if present',
+                    action='store_true', default=False)
 
 args = parser.parse_args()
 args.dirs = args.dirs.split(':')
@@ -152,6 +155,10 @@ with cd(args.src_dir):
         },
         'remotes': []
     }
+
+if args.debug:
+    from pprint import pprint
+    pprint(JSON)
 
 gcda_dirs = {}
 for gcda in recurse(os.path.abspath(args.bin_dir), '.gcno'):

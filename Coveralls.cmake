@@ -1,8 +1,13 @@
 option(${COVERALLS_PREFIX}COVERALLS "Turn on coveralls support" OFF)
+option(${COVERALLS_PREFIX}COVERALLS_DEBUG "Turn on coveralls debugging" OFF)
 option(${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS "Create an empty ${COVERALLS_PREFIX}coveralls_test" OFF)
 option(${COVERALLS_PREFIX}COVERALLS_UPLOAD "Upload the generated coveralls json" OFF)
 
 if (${COVERALLS_PREFIX}COVERALLS)
+	set(__DEBUG)
+	if (${COVERALLS_PREFIX}COVERALLS_DEBUG)
+		set(__DEBUG --debug)
+	endif()
 	if (NOT MSVC)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -132,6 +137,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
 				--dirs "${JOIN_DIRS}"
 				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
+				${__DEBUG}
 				${JOIN_IGNORE_FILES}
 			DEPENDS
 				${COVERALLS_PREFIX}coveralls_test
@@ -151,6 +157,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
 				--dirs "${JOIN_DIRS}"
 				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
+				${__DEBUG}
 				${JOIN_IGNORE_FILES}
 			DEPENDS
 				${COVERALLS_PREFIX}coveralls_test
