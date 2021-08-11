@@ -119,7 +119,7 @@ def file_md5_excl(path):
 services = [
     ('TRAVIS_JOB_ID', 'travis-ci', 'Travis-CI'),
     ('APPVEYOR_JOB_ID', 'appveyor', 'AppVeyor'),
-    ('GITHUB_RUN_ID', 'github', 'GitHub Workflows'),
+    # ('GITHUB_RUN_ID', 'github', 'GitHub Workflows'),
 ]
 
 job_id = ''
