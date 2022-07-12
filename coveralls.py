@@ -120,13 +120,17 @@ def file_md5_excl(path):
                 valid_for_os = match.group(3) in OS_EXCL
 
             if valid_for_os:
+                switch_off = False
                 if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
-                    inside_exclude = False
+                    switch_off = True
                 elif re.search(b"(G|L|GR)COV_EXCL_START", line):
                     inside_exclude = True
 
                 if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
                     excludes.append([lines, line.decode('UTF-8').rstrip()])
+
+                if switch_off:
+                    inside_exclude = False
             lines += 1
     return (m.hexdigest(), lines, excludes)
 
@@ -329,7 +333,7 @@ if excluded:
             if length > counter_width:
                 counter_width = length
 
-    color = '\033[2,49,30m'
+    color = '\033[2;49;30m'
     reset = '\033[m'
 
     for file, lines in patches:
