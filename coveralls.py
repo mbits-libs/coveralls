@@ -308,24 +308,7 @@ for src in sorted(coverage.keys()):
 with open(args.out, 'w') as j:
     json.dump(JSON, j)
 
-percentage = int(covered*10000 / relevant + 0.5) / 100 if relevant else 0
-print("-- Coverage reported:      {}/{} ({}%)".format(covered, relevant, percentage))
-
 if excluded:
-    def counted(counter, when_one, otherwise):
-        if counter == 0:
-            return when_one.format(counter)
-        return otherwise.format(counter)
-    excl_str = counted(excluded, "one line", "{} lines")
-    unv_str = counted(excluded_unvisited, "one line", "{} lines")
-    print("-- Excluded:               {}".format(excl_str))
-    print("-- Excluded never visited: {}".format(unv_str))
-    relevant += excluded_unvisited + excluded_visited
-    covered += excluded_visited
-    percentage = int(covered*10000 / relevant + 0.5) / 100
-    print(
-        "-- Revised coverage:       {}/{} ({}%)".format(covered, relevant, percentage))
-
     counter_width = 0
     for file, lines in patches:
         for linno, count, line in lines:
@@ -348,3 +331,21 @@ if excluded:
             prev = num
             print("     {:>{}} | {}{}{}".format(
                 counter, counter_width, color, line, reset))
+
+percentage = int(covered*10000 / relevant + 0.5) / 100 if relevant else 0
+print("-- Coverage reported: {}/{} ({}%)".format(covered, relevant, percentage))
+
+if excluded:
+    def counted(counter, when_one, otherwise):
+        if counter == 0:
+            return when_one.format(counter)
+        return otherwise.format(counter)
+    excl_str = counted(excluded_unvisited + excluded_visited, "one line", "{} lines")
+    unv_str = counted(excluded_unvisited, "one line", "{} lines")
+    print("-- Excluded relevant: {}".format(excl_str))
+    print("-- Excluded missing:  {}".format(unv_str))
+    relevant += excluded_unvisited + excluded_visited
+    covered += excluded_visited
+    percentage = int(covered*10000 / relevant + 0.5) / 100
+    print(
+        "-- Revised coverage:  {}/{} ({}%)".format(covered, relevant, percentage))
