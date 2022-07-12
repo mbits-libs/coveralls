@@ -96,22 +96,37 @@ def ENV(name):
         return ''
 
 
+try:
+    OS_EXCL = {
+        'nt': [b'WIN32'],
+        'posix': [b'POSIX', b'GCC']
+    }[os.name]
+except KeyError:
+    OS_EXCL = []
+
+
 def file_md5_excl(path):
     m = hashlib.md5()
     lines = 0
     excludes = []
-    exclude = False
     inside_exclude = False
     with open(path, 'rb') as f:
         for line in f:
             m.update(line)
-            if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
-                inside_exclude = False
-            elif re.search(b"(G|L|GR)COV_EXCL_START", line):
-                inside_exclude = True
+            valid_for_os = True
+            match = re.search(
+                rb"(G|L|GR)COV_EXCL_(START|LINE)\[([^]]+)\]", line)
+            if match:
+                valid_for_os = match.group(3) in OS_EXCL
 
-            if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
-                excludes.append([lines, line.decode('UTF-8').rstrip()])
+            if valid_for_os:
+                if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
+                    inside_exclude = False
+                elif re.search(b"(G|L|GR)COV_EXCL_START", line):
+                    inside_exclude = True
+
+                if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
+                    excludes.append([lines, line.decode('UTF-8').rstrip()])
             lines += 1
     return (m.hexdigest(), lines, excludes)
 
@@ -314,11 +329,18 @@ if excluded:
             if length > counter_width:
                 counter_width = length
 
+    color = '\033[2,49,30m'
+    reset = '\033[m'
+
     for file, lines in patches:
-        print("--   {}".format(file))
         prev = -10
         for num, counter, line in lines:
             if num - prev > 1:
-                print("     @ {} @".format(num))
+                if os.name == 'nt':
+                    print("{}({})".format(os.path.abspath(
+                        os.path.join(args.src_dir, file)), num + 1))
+                else:
+                    print("--   {}:{}".format(file, num + 1))
             prev = num
-            print("     {:>{}} | {}".format(counter, counter_width, line))
+            print("     {:>{}} | {}{}{}".format(
+                counter, counter_width, color, line, reset))
