@@ -146,7 +146,6 @@ def file_md5_excl(path, excluded):
             if line.strip() == b"":
                 empty.append(lines + 1)
             lines += 1
-    print(path, empty)
     return (m.hexdigest(), lines, excludes, empty)
 
 
@@ -301,7 +300,6 @@ patches = []
 for src in sorted(coverage.keys()):
     lines = coverage[src]
     digest, line_count, excl, empty = file_md5_excl(maps[src], EXCL_LIST)
-    print(lines, empty)
     for line_no in empty:
         if line_no in lines and lines[line_no] == 0:
             del lines[line_no]
