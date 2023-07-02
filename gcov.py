@@ -62,7 +62,7 @@ class GCOV8(Base):
     def ext(self):
         return ".gcov"
 
-    def stats(self, bin_dir, gcov_file):
+    def stats(self, gcov_file):
         result = {}
         filename = None
         file = None
@@ -76,7 +76,7 @@ class GCOV8(Base):
                         result[filename] = file
                     filename = split[1].strip()
                     if not os.path.isabs(filename):
-                        filename = os.path.abspath(os.path.join(bin_dir, filename))
+                        filename = os.path.abspath(os.path.join(self.bin_dir, filename))
                     file = [[], []]
                     continue
 
@@ -102,14 +102,14 @@ class JSON1(Base):
     def ext(self):
         return ".gcov.json.gz"
 
-    def stats(self, bin_dir, gcov_file):
+    def stats(self, gcov_file):
         result = {}
         with gzip.open(gcov_file, "rb") as compressed:
             data = json.loads(compressed.read().decode("ascii"))["files"]
             for coverage in data:
                 filename = coverage["file"]
                 if not os.path.isabs(filename):
-                    filename = os.path.abspath(os.path.join(bin_dir, filename))
+                    filename = os.path.abspath(os.path.join(self.bin_dir, filename))
 
                 functions = [
                     (
