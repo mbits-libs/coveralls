@@ -238,7 +238,7 @@ elif tool_id == "llvm":
     import llvm
 
     cov_tool = llvm.LLVM(args.gcov, args.merge, args.bin_dir, args.int_dir)
-    EXCL_LIST.append(b"CLANG")
+    EXCL_LIST.extend([b"CLANG", b"Clang", b"LLVM"])
 elif tool_id == "cobertura":
     import cobertura
 
