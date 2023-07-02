@@ -5,16 +5,16 @@ import os
 def printET(node, depth, max_depth):
     if depth == max_depth:
         return
-    prefix = depth * '   '
-    print('{}{} {}'.format(prefix, node.tag, node.attrib))
+    prefix = depth * "   "
+    print("{}{} {}".format(prefix, node.tag, node.attrib))
     if node.text is not None:
         text = node.text.strip()
         if text:
-            print('{}   # {}'.format(prefix, text))
+            print("{}   # {}".format(prefix, text))
     if node.tail is not None:
         text = node.tail.strip()
         if text:
-            print('{}# {}'.format(prefix, text))
+            print("{}# {}".format(prefix, text))
     depth += 1
     for child in node:
         printET(child, depth, max_depth)
@@ -30,17 +30,19 @@ class CoberturaXML:
     def __init__(self, path):
         self.path = path
 
-    def preprocess(self, _): return {}
+    def preprocess(self, _):
+        return {}
 
-    def ext(self): return '.xml'
+    def ext(self):
+        return ".xml"
 
     def stats(self, xml_file):
         root = ET.parse(xml_file).getroot()
         sources, packages = None, None
         for child in root:
-            if child.tag == 'sources':
+            if child.tag == "sources":
                 sources = child
-            if child.tag == 'packages':
+            if child.tag == "packages":
                 packages = child
 
         if packages is None:
@@ -59,7 +61,7 @@ class CoberturaXML:
             for classes in package:
                 for klass in classes:
                     try:
-                        filename = klass.attrib['filename']
+                        filename = klass.attrib["filename"]
                     except KeyError:
                         continue
 
@@ -67,7 +69,7 @@ class CoberturaXML:
 
                     lines = None
                     for info in klass:
-                        if info.tag == 'lines':
+                        if info.tag == "lines":
                             lines = info
 
                     if lines is None:
@@ -76,8 +78,8 @@ class CoberturaXML:
                     raw_lines = []
                     for line in lines:
                         try:
-                            number = int(line.attrib['number'])
-                            hits = int(line.attrib['hits'])
+                            number = int(line.attrib["number"])
+                            hits = int(line.attrib["hits"])
                             raw_lines.append((number, hits, False))
                         except KeyError:
                             continue
