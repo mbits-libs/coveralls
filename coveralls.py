@@ -98,16 +98,7 @@ def ENV(name):
         return ''
 
 
-try:
-    OS_EXCL = {
-        'nt': [b'WIN32'],
-        'posix': [b'POSIX', b'GCC']
-    }[os.name]
-except KeyError:
-    OS_EXCL = []
-
-
-def file_md5_excl(path):
+def file_md5_excl(path, excluded):
     m = hashlib.md5()
     lines = 0
     excludes = []
@@ -115,13 +106,14 @@ def file_md5_excl(path):
     with open(path, 'rb') as f:
         for line in f:
             m.update(line)
-            valid_for_os = True
+            exclude_enabled = True
             match = re.search(
                 rb"(G|L|GR)COV_EXCL_(START|LINE)\[([^]]+)\]", line)
             if match:
-                valid_for_os = match.group(3) in OS_EXCL
+                tags = [tag.strip() for tag in match.group(3).split(b',')]
+                exclude_enabled = any(tag in excluded for tag in tags)
 
-            if valid_for_os:
+            if exclude_enabled:
                 switch_off = False
                 if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
                     switch_off = True
@@ -205,15 +197,25 @@ if args.gcov is None and args.cobertura:
 else:
     tool_id, version = cov_version(args.gcov)
 
+try:
+    EXCL_LIST = {
+        'nt': [b'WIN32'],
+        'posix': [b'POSIX']
+    }[os.name]
+except KeyError:
+    EXCL_LIST = []
+
 if tool_id == 'gcov':
     import gcov
     if version[0] < 9:
         cov_tool = gcov.GCOV8(args.gcov, args.bin_dir, args.int_dir)
     else:
         cov_tool = gcov.JSON1(args.gcov, args.bin_dir, args.int_dir)
+    EXCL_LIST.append(b'GCC')
 elif tool_id == 'llvm':
     import llvm
     cov_tool = llvm.LLVM(args.gcov, args.merge, args.bin_dir, args.int_dir)
+    EXCL_LIST.append(b'CLANG')
 elif tool_id == 'cobertura':
     import cobertura
     cov_tool = cobertura.CoberturaXML(args.cobertura)
@@ -270,7 +272,7 @@ patches = []
 
 for src in sorted(coverage.keys()):
     lines = coverage[src]
-    digest, line_count, excl = file_md5_excl(maps[src])
+    digest, line_count, excl = file_md5_excl(maps[src], EXCL_LIST)
     size = max(line_count, max(lines.keys()))
     cvg = [None] * size
     relevant += len(lines)
