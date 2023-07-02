@@ -120,6 +120,7 @@ def file_md5_excl(path, excluded):
     m = hashlib.md5()
     lines = 0
     excludes = []
+    empty = []
     inside_exclude = False
     with open(path, "rb") as f:
         for line in f:
@@ -142,8 +143,11 @@ def file_md5_excl(path, excluded):
 
                 if switch_off:
                     inside_exclude = False
+            if line.strip() == b"":
+                empty.append(lines + 1)
             lines += 1
-    return (m.hexdigest(), lines, excludes)
+    print(path, empty)
+    return (m.hexdigest(), lines, excludes, empty)
 
 
 services = [
@@ -296,7 +300,11 @@ patches = []
 
 for src in sorted(coverage.keys()):
     lines = coverage[src]
-    digest, line_count, excl = file_md5_excl(maps[src], EXCL_LIST)
+    digest, line_count, excl, empty = file_md5_excl(maps[src], EXCL_LIST)
+    print(lines, empty)
+    for line_no in empty:
+        if line_no in lines and lines[line_no] == 0:
+            del lines[line_no]
     size = max(line_count, max(lines.keys()))
     cvg = [None] * size
     relevant += len(lines)
