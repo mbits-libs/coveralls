@@ -30,11 +30,11 @@ class CoberturaXML:
     def __init__(self, path):
         self.path = path
 
-    def run(self, tool, dirn, files): pass
+    def preprocess(self, _): return {}
 
     def ext(self): return '.xml'
 
-    def stats(self, bin_dir, xml_file):
+    def stats(self, xml_file):
         root = ET.parse(xml_file).getroot()
         sources, packages = None, None
         for child in root:

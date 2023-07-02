@@ -15,7 +15,9 @@ handler.add_argument('--cobertura',
                      help='look for .xml cobertura files instead of .gcno gcov files',
                      action='store_true')
 handler.add_argument('--gcov', metavar='PATH',
-                     help='path to the gcov program')
+                     help='path to the gcov/llvm-cov program')
+parser.add_argument('--merge', metavar='PATH',
+                     help='path to the llvm-profdata program')
 parser.add_argument('--git', metavar='PATH', required=True,
                     help='path to the git binary')
 parser.add_argument('--src_dir', metavar='DIR', required=True,
@@ -179,16 +181,8 @@ if args.debug:
     from pprint import pprint
     pprint(JSON)
 
-gcda_dirs = {}
-for gcda in recurse(os.path.abspath(args.bin_dir), '.gcno'):
-    dirn, filen = os.path.split(gcda)
-    if dirn not in gcda_dirs:
-        gcda_dirs[dirn] = []
-    gcda_dirs[dirn].append(filen)
-
-
 def cov_version(tool):
-    out, err, retcode = run(tool, "--version")
+    out, _, retcode = run(tool, "--version")
     if retcode:
         return (None, [0])
     out = out.split(b'\n')
@@ -198,6 +192,11 @@ def cov_version(tool):
         bver = out[0].split(b')', 1)[1].lstrip().split(b' ')[0]
         ver = [int(chunk) for chunk in bver.split(b'.')]
         return ('gcov', ver)
+    if out[0].split(b' ', 2)[1] == b'LLVM':
+        # Ubuntu LLVM version <version>
+        bver = out[0].split(b' ', 4)[3].strip()
+        ver = [int(chunk) for chunk in bver.split(b'.')]
+        return ('llvm', ver)
     return (None, [0])
 
 
@@ -209,9 +208,12 @@ else:
 if tool_id == 'gcov':
     import gcov
     if version[0] < 9:
-        cov_tool = gcov.GCOV8()
+        cov_tool = gcov.GCOV8(args.gcov, args.bin_dir, args.int_dir)
     else:
-        cov_tool = gcov.JSON1()
+        cov_tool = gcov.JSON1(args.gcov, args.bin_dir, args.int_dir)
+elif tool_id == 'llvm':
+    import llvm
+    cov_tool = llvm.LLVM(args.gcov, args.merge, args.bin_dir, args.int_dir)
 elif tool_id == 'cobertura':
     import cobertura
     cov_tool = cobertura.CoberturaXML(args.cobertura)
@@ -220,21 +222,15 @@ else:
         [str(chunk) for chunk in version]), file=sys.stderr)
     sys.exit(1)
 
-for dirn in gcda_dirs:
-    int_dir = os.path.relpath(dirn, args.bin_dir).replace(os.sep, '#')
-    int_dir = os.path.join(args.int_dir, int_dir)
-    mkdir_p(int_dir)
-    with cd(int_dir):
-        cov_tool.run(args.gcov, dirn, [os.path.join(
-            dirn, filen) for filen in gcda_dirs[dirn]])
+cov_tool.preprocess(recurse)
 
 src_dir = os.path.abspath(args.src_dir)
 src_dir_len = len(src_dir)
 coverage = {}
 maps = {}
-for stats in recurse(args.int_dir, cov_tool.ext()):
-    gcov_data = cov_tool.stats(args.bin_dir, stats)
-    for src in gcov_data:
+for intermediate in recurse(args.int_dir, cov_tool.ext()):
+    data = cov_tool.stats(intermediate)
+    for src in data:
         if src[:src_dir_len] != src_dir:
             continue
         name = src[len(src_dir):]
@@ -253,7 +249,7 @@ for stats in recurse(args.int_dir, cov_tool.ext()):
                     break
         if not relevant:
             continue
-        fns, lines = gcov_data[src]
+        fns, lines = data[src]
         # Build the report with generic paths
         if os.sep != '/':
             name = name.replace(os.sep, '/')
