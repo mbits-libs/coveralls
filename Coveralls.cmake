@@ -75,7 +75,9 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			)
 		set_target_properties(
 			${COVERALLS_PREFIX}coveralls_prepare
-			PROPERTIES FOLDER "Coveralls Targets")
+			PROPERTIES
+				FOLDER "Coveralls Targets"
+				EXCLUDE_FROM_DEFAULT_BUILD True)
 	else()
 		add_custom_target(${COVERALLS_PREFIX}coveralls_clean_counters
 			# Reset all counters
@@ -98,11 +100,15 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			${COVERALLS_PREFIX}coveralls_clean_counters
 			${COVERALLS_PREFIX}coveralls_remove_intermediate_files
 			${COVERALLS_PREFIX}coveralls_prepare
-			PROPERTIES FOLDER "Coveralls Targets")
+			PROPERTIES
+				FOLDER "Coveralls Targets"
+				EXCLUDE_FROM_DEFAULT_BUILD True)
 	endif()
 	else()
 		add_custom_target(${COVERALLS_PREFIX}coveralls_prepare)
-		set_target_properties(${COVERALLS_PREFIX}coveralls_prepare PROPERTIES FOLDER "Coveralls Targets")
+		set_target_properties(${COVERALLS_PREFIX}coveralls_prepare PROPERTIES
+			FOLDER "Coveralls Targets"
+			EXCLUDE_FROM_DEFAULT_BUILD True)
 	endif()
 
 	if (${COVERALLS_PREFIX}COVERALLS_EXTERNAL_TESTS)
@@ -253,7 +259,9 @@ if (${COVERALLS_PREFIX}COVERALLS)
 
 			WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 			COMMENT "Uploading coveralls output...")
-		set_target_properties(${COVERALLS_PREFIX}coveralls_upload PROPERTIES FOLDER "Coveralls Targets")
+		set_target_properties(${COVERALLS_PREFIX}coveralls_upload PROPERTIES
+			FOLDER "Coveralls Targets"
+			EXCLUDE_FROM_DEFAULT_BUILD True)
 
 		add_custom_target(${COVERALLS_PREFIX}coveralls DEPENDS ${COVERALLS_PREFIX}coveralls_upload)
 	else()
@@ -265,5 +273,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 		${COVERALLS_PREFIX}coveralls
 		${COVERALLS_PREFIX}coveralls_test
 		${COVERALLS_PREFIX}coveralls_generate
-		PROPERTIES FOLDER "Coveralls Targets")
+		PROPERTIES
+			FOLDER "Coveralls Targets"
+			EXCLUDE_FROM_DEFAULT_BUILD True)
 endif()
