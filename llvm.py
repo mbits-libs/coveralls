@@ -2,8 +2,8 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
-from typing import Callable, Iterable, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Callable, Iterable, Dict, List, Optional, Tuple, NamedTuple
 
 
 @dataclass
@@ -82,6 +82,52 @@ def _line_coverage_iterator(coverage: List[CoverageSegment]):
         line += 1
 
 
+@dataclass(order=True)
+class TextPos:
+    line: int = 0
+    col: int = 0
+
+
+@dataclass(order=True)
+class RegionRef:
+    start: TextPos
+    end: TextPos
+
+
+@dataclass
+class FileRef:
+    valid: bool = False
+    start: TextPos = field(default=TextPos())
+    end: TextPos = field(default=TextPos())
+
+
+def _function_encompassing_region(regions: List[List[int]]):
+    result: Optional[RegionRef] = None
+
+    for region in regions:
+        if len(region) < 8:
+            continue
+        if region[7] != 0 or region[5] != 0:
+            continue
+        start_line, start_col, end_line, end_col = region[:4]
+        start = TextPos(start_line, start_col)
+        end = TextPos(end_line, end_col)
+
+        if result is None:
+            result = RegionRef(start, end)
+            continue
+
+        if result.start > start:
+            result.start = start
+        if result.end < end:
+            result.end = end
+
+    if result is not None:
+        return FileRef(True, result.start, result.end)
+
+    return FileRef()
+
+
 class LLVM:
     def __init__(self, cov_tool: str, merge_tool: str, bin_dir: str, int_dir: str):
         self.cov_tool = cov_tool
@@ -99,7 +145,7 @@ class LLVM:
                 "export",
                 "-format",
                 "text",
-                "-skip-functions",
+                # "-skip-functions",
                 "-skip-expansions",
                 "-instr-profile",
                 profile_data_file,
@@ -182,5 +228,35 @@ class LLVM:
                     lines.append((stats.line, stats.execution_count, None))
 
                 result[filename] = [[], lines]
+
+        for export in coverage:
+            for function in export.get("functions", []):
+                count: Optional[int] = function.get("count")
+                name: Optional[str] = function.get("name")
+                filenames: List[str] = function.get("filenames", [])
+                if count is None or name is None:
+                    continue
+
+                ref = _function_encompassing_region(function.get("regions", []))
+
+                if not ref.valid or len(filenames) < 1:
+                    continue
+
+                filename = filenames[0]
+
+                func_decl = (
+                    ref.start.line,
+                    ref.end.line,
+                    ref.start.col,
+                    ref.end.col,
+                    count,
+                    name,
+                    None,
+                )
+
+                try:
+                    result[filename][0].append(func_decl)
+                except KeyError:
+                    result[filename] = [[func_decl], []]
 
         return result

@@ -37,8 +37,16 @@ class Base:
             os.makedirs(int_dir, exist_ok=True)
             files = [os.path.join(dirname, filen) for filen in gcno_dirs[dirname]]
             with cd(int_dir):
+                import shlex
+
+                print(
+                    shlex.join(
+                        [self.gcov, "-l", "-b", "-c", "-i", "-p", "-o", dirname] + files
+                    ),
+                    file=sys.stderr,
+                )
                 p = subprocess.Popen(
-                    [self.gcov, "-l", "-i", "-p", "-o", dirname] + files,
+                    [self.gcov, "-l", "-b", "-c", "-i", "-p", "-o", dirname] + files,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
@@ -83,6 +91,7 @@ class GCOV8(Base):
                 if split[0] == "function":
                     start, stop, count, name = split[1].split(",")
                     file[0].append((int(start), int(stop), int(count), name.strip()))
+                    print(file[0][-1])
                     continue
 
                 if split[0] == "lcount":
@@ -113,10 +122,13 @@ class JSON1(Base):
 
                 functions = [
                     (
-                        fun["start_line"],
-                        fun["end_line"],
-                        fun["execution_count"],
-                        fun["name"],
+                        fun.get("start_line"),
+                        fun.get("end_line"),
+                        fun.get("start_column"),
+                        fun.get("end_column"),
+                        fun.get("execution_count"),
+                        fun.get("name"),
+                        fun.get("demangled_name"),
                     )
                     for fun in coverage["functions"]
                 ]

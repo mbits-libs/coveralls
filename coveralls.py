@@ -119,34 +119,11 @@ def ENV(name):
 def file_md5_excl(path, excluded):
     m = hashlib.md5()
     lines = 0
-    excludes = []
-    empty = []
-    inside_exclude = False
     with open(path, "rb") as f:
         for line in f:
             m.update(line)
-            exclude_enabled = True
-            match = re.search(rb"(G|L|GR)COV_EXCL_(START|LINE)\[([^]]+)\]", line)
-            if match:
-                tags = [tag.strip() for tag in match.group(3).split(b",")]
-                exclude_enabled = any(tag in excluded for tag in tags)
-
-            if exclude_enabled:
-                switch_off = False
-                if re.search(b"(G|L|GR)COV_EXCL_STOP", line):
-                    switch_off = True
-                elif re.search(b"(G|L|GR)COV_EXCL_START", line):
-                    inside_exclude = True
-
-                if inside_exclude or re.search(b"(G|L|GR)COV_EXCL_LINE", line):
-                    excludes.append([lines, line.decode("UTF-8").rstrip()])
-
-                if switch_off:
-                    inside_exclude = False
-            if line.strip() == b"":
-                empty.append(lines + 1)
             lines += 1
-    return (m.hexdigest(), lines, excludes, empty)
+    return (m.hexdigest(), lines)
 
 
 services = [
@@ -284,11 +261,38 @@ for intermediate in recurse(args.int_dir, cov_tool.ext()):
             name = name.replace(os.sep, "/")
         for line, count, _ in lines:
             if name not in coverage:
-                coverage[name] = {}
+                coverage[name] = [{}, {}]
                 maps[name] = src
-            if line not in coverage[name]:
-                coverage[name][line] = 0
-            coverage[name][line] += count
+            if line not in coverage[name][0]:
+                coverage[name][0][line] = 0
+            coverage[name][0][line] += count
+
+        for (
+            start_line,
+            end_line,
+            start_column,
+            end_column,
+            execution_count,
+            raw_name,
+            demangled_name,
+        ) in fns:
+            if None in [start_line, raw_name, execution_count]:
+                continue
+            if name not in coverage:
+                coverage[name] = [{}, {}]
+                maps[name] = src
+            if raw_name not in coverage[name][1]:
+                coverage[name][1][raw_name] = {"name": raw_name, "count": 0}
+            coverage[name][1][raw_name]["count"] += execution_count
+            coverage[name][1][raw_name]["start_line"] = start_line
+            for value, key_name in [
+                (end_line, "end_line"),
+                (start_column, "start_column"),
+                (end_column, "end_column"),
+                (demangled_name, "demangled"),
+            ]:
+                if value is not None:
+                    coverage[name][1][raw_name][key_name] = value
 
 relevant = 0
 covered = 0
@@ -298,12 +302,24 @@ excluded_unvisited = 0
 patches = []
 
 for src in sorted(coverage.keys()):
-    lines = coverage[src]
-    digest, line_count, excl, empty = file_md5_excl(maps[src], EXCL_LIST)
-    for line_no in empty:
-        if line_no in lines and lines[line_no] == 0:
-            del lines[line_no]
-    size = max(line_count, max(lines.keys()))
+    lines, functions = coverage[src]
+    digest, line_count = file_md5_excl(maps[src], EXCL_LIST)
+
+    cleaned = {}
+    fn_set = {line + 1 for line, _ in []}
+    for key, fn in functions.items():
+        start_line = fn.get("start_line", 0)
+        end_line = fn.get("end_line", start_line)
+        excluded = True
+        for line in range(start_line, end_line + 1):
+            if line in lines and line not in fn_set:
+                excluded = False
+                break
+        if not excluded:
+            cleaned[key] = fn
+    functions = cleaned
+
+    size = max(line_count, max(lines.keys())) if len(lines) else 0
     cvg = [None] * size
     relevant += len(lines)
     for line in lines:
@@ -311,9 +327,9 @@ for src in sorted(coverage.keys()):
         if val:
             covered += 1
         cvg[line - 1] = val
-    excluded += len(excl)
+    excluded += 0
     patch_lines = []
-    for line, text in excl:
+    for line, text in []:
         val = cvg[line]
         if val is not None:
             relevant -= 1
@@ -327,10 +343,17 @@ for src in sorted(coverage.keys()):
     if len(patch_lines):
         patches.append((src, patch_lines))
 
-    JSON["source_files"].append({"name": src, "source_digest": digest, "coverage": cvg})
+    JSON["source_files"].append(
+        {
+            "name": src,
+            "source_digest": digest,
+            "coverage": cvg,
+            "functions": [functions[key] for key in sorted(functions.keys())],
+        }
+    )
 
 with open(args.out, "w") as j:
-    json.dump(JSON, j)
+    json.dump(JSON, j, sort_keys=True)
 
 if excluded:
     counter_width = 0
@@ -343,24 +366,24 @@ if excluded:
     color = "\033[2;49;30m"
     reset = "\033[m"
 
-    for file, lines in patches:
-        prev = -10
-        for num, counter, line in lines:
-            if num - prev > 1:
-                if os.name == "nt":
-                    print(
-                        "{}({})".format(
-                            os.path.abspath(os.path.join(args.src_dir, file)), num + 1
-                        )
-                    )
-                else:
-                    print("--   {}:{}".format(file, num + 1))
-            prev = num
-            print(
-                "     {:>{}} | {}{}{}".format(
-                    counter, counter_width, color, line, reset
-                )
-            )
+    # for file, lines in patches:
+    #     prev = -10
+    #     for num, counter, line in lines:
+    #         if num - prev > 1:
+    #             if os.name == "nt":
+    #                 print(
+    #                     "{}({})".format(
+    #                         os.path.abspath(os.path.join(args.src_dir, file)), num + 1
+    #                     )
+    #                 )
+    #             else:
+    #                 print("--   {}:{}".format(file, num + 1))
+    #         prev = num
+    #         print(
+    #             "     {:>{}} | {}{}{}".format(
+    #                 counter, counter_width, color, line, reset
+    #             )
+    #         )
 
 percentage = int(covered * 10000 / relevant + 0.5) / 100 if relevant else 0
 print("-- Coverage reported: {}/{} ({}%)".format(covered, relevant, percentage))
