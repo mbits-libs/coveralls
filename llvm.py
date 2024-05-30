@@ -128,6 +128,12 @@ def _function_encompassing_region(regions: List[List[int]]):
     return FileRef()
 
 
+def is_script(path):
+    with open(path, "rb") as f:
+        maybe_hash_bang = f.read(2)
+        return maybe_hash_bang == b'#!'
+
+
 class LLVM:
     def __init__(self, cov_tool: str, merge_tool: str, bin_dir: str, int_dir: str):
         self.cov_tool = cov_tool
@@ -185,12 +191,34 @@ class LLVM:
         ext = ".exe" if os.name == "nt" else ""
         suffix = f"-test{ext}"
         execs: List[str] = []
+        for root, dirnames, _ in os.walk(os.path.join(self.bin_dir, "share")):
+            for dirname in dirnames:
+                if dirname[:4] == "cov-":
+                    share_dir = os.path.join(root, dirname)
+            dirnames[:] = []
+
         bin_dir = os.path.join(self.bin_dir, "bin")
+        libexec_dir = os.path.join(self.bin_dir, "libexec")
+        filters_dir = os.path.join(share_dir, "filters")
+
         for root, dirnames, filenames in os.walk(bin_dir):
             dirnames[:] = []
             for filename in filenames:
                 if filename == f"cov{ext}" or filename[-len(suffix) :] == suffix:
                     execs.append(os.path.join(root, filename))
+
+        for root, _, filenames in os.walk(libexec_dir):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                if not is_script(full_path):
+                    execs.append(full_path)
+
+        for root, _, filenames in os.walk(filters_dir):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                if not is_script(full_path):
+                    execs.append(full_path)
+
         for exe in execs:
             local = os.path.join(
                 self.int_dir, os.path.relpath(exe, self.bin_dir) + ".profjson"
