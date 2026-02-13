@@ -3,7 +3,10 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Dict, List, Optional, Tuple, NamedTuple
+from pathlib import Path
+from typing import cast
+
+from cov.base import BaseTool, FileInfo, FunctionDecl, LineDecl, recurse
 
 
 @dataclass
@@ -19,7 +22,7 @@ class CoverageSegment:
 @dataclass
 class LCS:
     line: int
-    execution_count: Optional[int] = None
+    execution_count: int | None = None
 
 
 def _is_start_of_region(segment: CoverageSegment):
@@ -27,8 +30,8 @@ def _is_start_of_region(segment: CoverageSegment):
 
 
 def _line_coverage_stats(
-    line_segments: List[CoverageSegment],
-    wrapped_segment: Optional[CoverageSegment],
+    line_segments: list[CoverageSegment],
+    wrapped_segment: CoverageSegment | None,
     line: int,
 ):
     result = LCS(line)
@@ -58,15 +61,17 @@ def _line_coverage_stats(
 
     for segment in line_segments:
         if _is_start_of_region(segment):
-            result.execution_count = max(result.execution_count, segment.count)
+            result.execution_count = max(
+                cast(int, result.execution_count), segment.count
+            )
 
     return result
 
 
-def _line_coverage_iterator(coverage: List[CoverageSegment]):
-    wrapped: Optional[CoverageSegment] = None
+def _line_coverage_iterator(coverage: list[CoverageSegment]):
+    wrapped: CoverageSegment | None = None
     line: int = coverage[0].line if len(coverage) else 0
-    segments: List[CoverageSegment] = []
+    segments: list[CoverageSegment] = []
     end_index = len(coverage)
     index = 0
 
@@ -97,12 +102,12 @@ class RegionRef:
 @dataclass
 class FileRef:
     valid: bool = False
-    start: TextPos = field(default=TextPos())
-    end: TextPos = field(default=TextPos())
+    start: TextPos = field(default_factory=TextPos)
+    end: TextPos = field(default_factory=TextPos)
 
 
-def _function_encompassing_region(regions: List[List[int]]):
-    result: Optional[RegionRef] = None
+def _function_encompassing_region(regions: list[list[int]]):
+    result: RegionRef | None = None
 
     for region in regions:
         if len(region) < 8:
@@ -131,20 +136,26 @@ def _function_encompassing_region(regions: List[List[int]]):
 def is_script(path):
     with open(path, "rb") as f:
         maybe_hash_bang = f.read(2)
-        return maybe_hash_bang == b'#!'
+        return maybe_hash_bang == b"#!"
 
 
-class LLVM:
-    def __init__(self, cov_tool: str, merge_tool: str, bin_dir: str, int_dir: str):
-        self.cov_tool = cov_tool
-        self.merge_tool = merge_tool
+class LLVM(BaseTool):
+    def __init__(
+        self, cov_tool: str, merge_tool: str, target: str, bin_dir: Path, int_dir: Path
+    ):
+        self.cov_tool = Path(cov_tool)
+        self.merge_tool = Path(merge_tool)
+        self.target = target
         self.bin_dir = bin_dir
         self.int_dir = int_dir
+
+    def exclude(self):
+        return ["CLANG", "Clang", "LLVM"]
 
     def ext(self):
         return ".profjson"
 
-    def _export(self, profile_data_file: str, exe: str):
+    def _export(self, profile_data_file: Path, exe: Path):
         p = subprocess.run(
             [
                 self.cov_tool,
@@ -154,8 +165,8 @@ class LLVM:
                 # "-skip-functions",
                 "-skip-expansions",
                 "-instr-profile",
-                profile_data_file,
-                exe,
+                str(profile_data_file),
+                str(exe),
             ],
             shell=False,
             stdout=subprocess.PIPE,
@@ -167,21 +178,23 @@ class LLVM:
             sys.exit(1)
         return p.stdout
 
-    def preprocess(self, recurse: Callable[[str, str], Iterable[str]]):
-        raw = list(recurse(os.path.abspath(self.bin_dir), ".profraw"))
-        if not len(raw):
+    def preprocess(self):
+        raw = list(recurse(self.bin_dir.absolute(), ".profraw"))
+        if not raw:
             return
-        profile_data_file = f"{self.int_dir}/coverage.profdata"
-        args = [
-            self.merge_tool,
-            "merge",
-            "-sparse",
-            *raw,
-            "-o",
-            profile_data_file,
-        ]
+        profile_data_file = self.int_dir / "coverage.profdata"
         p = subprocess.run(
-            args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            [
+                str(self.merge_tool),
+                "merge",
+                "-sparse",
+                *raw,
+                "-o",
+                str(profile_data_file),
+            ],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         if p.returncode:
             print(p.stderr, file=sys.stderr)
@@ -189,61 +202,41 @@ class LLVM:
             sys.exit(1)
 
         ext = ".exe" if os.name == "nt" else ""
+        target = f"{self.target}{ext}"
         suffix = f"-test{ext}"
-        execs: List[str] = []
-        for root, dirnames, _ in os.walk(os.path.join(self.bin_dir, "share")):
-            for dirname in dirnames:
-                if dirname[:4] == "cov-":
-                    share_dir = os.path.join(root, dirname)
-            dirnames[:] = []
+        execs: list[Path] = []
 
-        bin_dir = os.path.join(self.bin_dir, "bin")
-        libexec_dir = os.path.join(self.bin_dir, "libexec")
-        filters_dir = os.path.join(share_dir, "filters")
+        bin_dir = self.bin_dir / "bin"
 
-        for root, dirnames, filenames in os.walk(bin_dir):
+        for root, dirnames, filenames in bin_dir.walk():
             dirnames[:] = []
             for filename in filenames:
-                if filename == f"cov{ext}" or filename[-len(suffix) :] == suffix:
-                    execs.append(os.path.join(root, filename))
-
-        for root, _, filenames in os.walk(libexec_dir):
-            for filename in filenames:
-                full_path = os.path.join(root, filename)
-                if not is_script(full_path):
-                    execs.append(full_path)
-
-        for root, _, filenames in os.walk(filters_dir):
-            for filename in filenames:
-                full_path = os.path.join(root, filename)
-                if not is_script(full_path):
-                    execs.append(full_path)
+                if filename == target or filename.endswith(suffix):
+                    execs.append(root / filename)
 
         for exe in execs:
-            local = os.path.join(
-                self.int_dir, os.path.relpath(exe, self.bin_dir) + ".profjson"
-            )
-            os.makedirs(os.path.dirname(local), exist_ok=True)
-            text = self._export(profile_data_file, exe)
+            local = self.int_dir / (str(exe.relative_to(self.bin_dir)) + ".profjson")
+            local.parent.mkdir(parents=True, exist_ok=True)
+            blob = self._export(profile_data_file, exe)
             with open(local, "wb") as out:
-                out.write(text)
+                out.write(blob)
 
-    def stats(self, profile_json_file: str):
-        with open(profile_json_file, encoding="UTF-8") as data:
-            coverage_root = json.load(data)
+    def stats(self, intermediate_file: str | Path):
+        with open(intermediate_file, encoding="UTF-8") as data:
+            coverage_root = cast(dict, json.load(data))
         coverage = coverage_root.get("data", [])
         version = int(coverage_root.get("version", "0.0.0").split(".", 1)[0])
         if version != 2:
             return None
 
-        result = {}
+        result: dict[Path, FileInfo] = {}
         for export in coverage:
             for file in export.get("files", []):
-                filename = file.get("filename")
+                filename = cast(str | None, file.get("filename"))
                 if filename is None:
                     continue
 
-                lines: List[Tuple[int, int, None]] = []
+                lines: list[LineDecl] = []
                 segments = [
                     CoverageSegment(line, column, count, has_count, is_entry, is_gap)
                     for line, column, count, has_count, is_entry, is_gap in file.get(
@@ -253,38 +246,37 @@ class LLVM:
                 for stats in _line_coverage_iterator(segments):
                     if stats.execution_count is None:
                         continue
-                    lines.append((stats.line, stats.execution_count, None))
+                    lines.append(LineDecl(stats.line, stats.execution_count, None))
 
-                result[filename] = [[], lines]
+                result[Path(filename)] = FileInfo([], lines)
 
         for export in coverage:
             for function in export.get("functions", []):
-                count: Optional[int] = function.get("count")
-                name: Optional[str] = function.get("name")
-                filenames: List[str] = function.get("filenames", [])
+                count = cast(int | None, function.get("count"))
+                name = cast(str | None, function.get("name"))
+                filenames = cast(list[str], function.get("filenames", []))
                 if count is None or name is None:
                     continue
 
                 ref = _function_encompassing_region(function.get("regions", []))
 
-                if not ref.valid or len(filenames) < 1:
+                if not ref.valid or not filenames:
                     continue
 
-                filename = filenames[0]
+                filename = Path(filenames[0])
 
-                func_decl = (
+                func_decl = FunctionDecl(
                     ref.start.line,
                     ref.end.line,
                     ref.start.col,
                     ref.end.col,
                     count,
                     name,
-                    None,
                 )
 
                 try:
-                    result[filename][0].append(func_decl)
+                    result[filename].functions.append(func_decl)
                 except KeyError:
-                    result[filename] = [[func_decl], []]
+                    result[filename] = FileInfo([func_decl], [])
 
         return result

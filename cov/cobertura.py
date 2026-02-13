@@ -1,5 +1,8 @@
-import xml.etree.ElementTree as ET
 import os
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+from cov.base import BaseTool, FileInfo, FunctionDecl, LineDecl, recurse
 
 
 def printET(node, depth, max_depth):
@@ -26,18 +29,21 @@ def diskname_from_xml(sources):
         return disks[0]
 
 
-class CoberturaXML:
+class CoberturaXML(BaseTool):
     def __init__(self, path):
         self.path = path
 
-    def preprocess(self, _):
-        return {}
+    def exclude(self):
+        return ["MSVC"]
+
+    def preprocess(self):
+        pass
 
     def ext(self):
         return ".xml"
 
-    def stats(self, xml_file):
-        root = ET.parse(xml_file).getroot()
+    def stats(self, intermediate_file: str | Path):
+        root = ET.parse(intermediate_file).getroot()
         sources, packages = None, None
         for child in root:
             if child.tag == "sources":
@@ -52,11 +58,11 @@ class CoberturaXML:
         if sources is not None:
             diskname = diskname_from_xml(sources)
         if diskname is None:
-            diskname = os.path.splitdrive(os.path.abspath(xml_file))[0]
+            diskname = os.path.splitdrive(os.path.abspath(intermediate_file))[0]
         if len(diskname) and diskname[len(diskname) - 1] not in "\\/":
             diskname += os.sep
 
-        result = {}
+        result: dict[Path, FileInfo] = {}
         for package in packages:
             for classes in package:
                 for klass in classes:
@@ -65,7 +71,7 @@ class CoberturaXML:
                     except KeyError:
                         continue
 
-                    filename = os.path.join(diskname, filename)
+                    filename = Path(os.path.join(diskname, filename))
 
                     lines = None
                     for info in klass:
@@ -75,12 +81,12 @@ class CoberturaXML:
                     if lines is None:
                         continue
 
-                    raw_lines = []
+                    raw_lines: list[LineDecl] = []
                     for line in lines:
                         try:
                             number = int(line.attrib["number"])
                             hits = int(line.attrib["hits"])
-                            raw_lines.append((number, hits, False))
+                            raw_lines.append(LineDecl(number, hits, False))
                         except KeyError:
                             continue
                         except ValueError:
@@ -89,6 +95,6 @@ class CoberturaXML:
                     coverage = list(sorted(raw_lines))
                     if not len(coverage):
                         continue
-                    result[filename] = ([], coverage)
+                    result[filename] = FileInfo([], coverage)
 
         return result
