@@ -1,71 +1,32 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import argparse
 import hashlib
 import json
-import os
 import shutil
 import sys
-from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, cast
 
 from cov import base
-from cov.base import ENV, cd, git_log_format, output, recurse
-from cov.quess import guess_tool
+from cov.base import BaseTool, recurse
+from cov.ci import get_base_header, get_report_header
+from cov.excludes import coverage_stats, excludes
+from cov.git import get_git_header
+from cov.tools import guess_tool
 
 
-def file_md5_excl(path: str | Path, excluded):
+def file_md5(path: str | Path):
     m = hashlib.md5()
     lines = 0
     with open(path, "rb") as f:
         for line in f:
+            if line.endswith(b"\r\n"):
+                line = line[:-2] + b"\n"
             m.update(line)
             lines += 1
     return (m.hexdigest(), lines)
-
-
-def get_report_header():
-    services = [
-        ("TRAVIS_JOB_ID", "travis-ci", "Travis-CI"),
-        ("APPVEYOR_JOB_ID", "appveyor", "AppVeyor"),
-        ("GITHUB_JOB", "github", "GitHub Workflows"),
-    ]
-
-    job_id = ""
-    service = ""
-    for varname, service_id, service_name in services:
-        job_id = ENV(varname)
-        if not job_id:
-            continue
-
-        service = service_id
-        sys.stdout.write(
-            "Preparing Coveralls for {} job {}.\n".format(service_name, job_id)
-        )
-        break
-
-    return {
-        "service_name": service,
-        "service_job_id": job_id,
-        "repo_token": ENV("COVERALLS_REPO_TOKEN"),
-        "git": {},
-        "source_files": [],
-    }
-
-
-def get_git_header(json: dict[str, Any], src_dir: str | Path):
-    with cd(src_dir):
-        json["git"] = {
-            "branch": output(base.GIT_EXECUTABLE, "rev-parse", "--abbrev-ref", "HEAD"),
-            "head": {
-                "id": git_log_format("H"),
-                "author_name": git_log_format("an"),
-                "author_email": git_log_format("ae"),
-                "committer_name": git_log_format("cn"),
-                "committer_email": git_log_format("ce"),
-                "message": git_log_format("B"),
-            },
-            "remotes": [],
-        }
 
 
 def parse_args():
@@ -87,9 +48,6 @@ def parse_args():
         metavar="FILENAME",
         required=True,
         help="name of the tested application",
-    )
-    parser.add_argument(
-        "--git", metavar="PATH", required=False, help="path to the git binary"
     )
     parser.add_argument(
         "--src_dir", metavar="DIR", required=True, help="directory for source files"
@@ -123,30 +81,85 @@ def parse_args():
     return parser.parse_args()
 
 
-def tool():
-    base.GIT_EXECUTABLE = shutil.which("git") or "git"
-
-    args = parse_args()
-    dirs = [Path(dirname) for dirname in args.dirs.split(":")]
-
-    JSON = get_report_header()
-    get_git_header(JSON, args.src_dir)
-    if args.debug:
-        from pprint import pprint
-
-        pprint(JSON)
-
-    cov_tool = guess_tool(
-        args.gcov,
-        args.cobertura,
-        args.merge,
-        args.target,
-        Path(args.bin_dir),
-        Path(args.int_dir),
-    )
-
+def props(build_dir: Path):
+    path = build_dir / "report_answers.txt"
     try:
-        EXCL_LIST = {"win32": ["WIN32"], "linux": ["POSIX"]}[sys.platform]
+        text = path.read_text("utf-8")
+        lines = [line[2:] for line in text.split("\n") if line.startswith("-p")]
+
+        result = {}
+        for line in lines:
+            name, value = line.split("=", 2)
+
+            try:
+                num = int(value)
+                result[name] = num
+                continue
+            except ValueError:
+                # Not an integer; fall through to handle booleans and strings below.
+                pass
+
+            if value.lower() in ["on", "true", "yes"]:
+                result[name] = True
+                continue
+
+            if value.lower() in ["off", "false", "no"]:
+                result[name] = False
+                continue
+
+            if value.startswith("'") and value.endswith("'"):
+                result[name] = value[1:-1]
+                continue
+
+            result[name] = value
+
+        return result
+
+    except FileNotFoundError:
+        return {}
+
+
+def build_job_flag_name(props: dict[str, Any]) -> str:
+    if props.get("compiler") == "msvc" and props.get("compiler.version"):
+        del props["compiler.version"]
+    if props.get("os.version") is None:
+        props["os.version"] = "latest"
+
+    props["flag_name"] = ""
+    key_change = [
+        ("os", "os.version", "-{}"),
+        ("compiler", "compiler.version", "-{}"),
+        ("flag_name", "build_type", "{}"),
+        ("flag_name", "os", ", {}"),
+        ("flag_name", "compiler", ", {}"),
+        ("flag_name", "sanitizer", ", sanitizer"),
+    ]
+
+    for parent_key, child_key, fmt in key_change:
+        parent = props.get(parent_key)
+        child = props.get(child_key)
+        if parent is None or child is None:
+            continue
+        if "{}" not in fmt and isinstance(child, bool):
+            child = fmt
+        else:
+            child = fmt.format(child)
+        props[parent_key] = f"{parent}{child}"
+        del props[child_key]
+
+    return props["flag_name"]
+
+
+def gather_coverage(
+    cov_tool: BaseTool,
+    src_dir: Path,
+    int_dir: Path,
+    dirs: list[Path],
+    excl_stats: coverage_stats,
+):
+    result: list[dict] = []
+    try:
+        EXCL_LIST = {"win32": ["win32"], "linux": ["linux", "posix"]}[sys.platform]
     except KeyError:
         EXCL_LIST = []
 
@@ -154,10 +167,9 @@ def tool():
 
     cov_tool.preprocess()
 
-    src_dir = Path(args.src_dir).absolute()
     coverage: dict[str, list[dict]] = {}
     maps: dict[str, Path] = {}
-    for intermediate_file in recurse(Path(args.int_dir), cov_tool.ext()):
+    for intermediate_file in recurse(int_dir, cov_tool.ext()):
         data = cov_tool.stats(intermediate_file)
         if not data:
             continue
@@ -175,114 +187,110 @@ def tool():
 
             info.append_as(name.as_posix(), src, coverage=coverage, paths=maps)
 
-    relevant = 0
-    covered = 0
-    excluded = 0
-    excluded_visited = 0
-    excluded_unvisited = 0
-    patches = []
-
     for src in sorted(coverage.keys()):
         lines, functions = coverage[src]
-        digest, line_count = file_md5_excl(maps[src], EXCL_LIST)
-
-        cleaned = {}
-        fn_set = {line + 1 for line, _ in []}
-        for key, fn in functions.items():
-            start_line = fn.get("start_line", 0)
-            end_line = fn.get("end_line", start_line)
-            excluded = True
-            for line in range(start_line, end_line + 1):
-                if line in lines and line not in fn_set:
-                    excluded = False
-                    break
-            if not excluded:
-                cleaned[key] = fn
-        functions = cleaned
-
-        size = max(line_count, max(lines.keys())) if len(lines) else 0
-        cvg = [None] * size
-        relevant += len(lines)
-        for line in lines:
-            val = lines[line]
-            if val:
-                covered += 1
-            cvg[line - 1] = val
-        excluded += 0
-        patch_lines = []
-        for line, text in []:
-            val = cvg[line]
-            if val is not None:
-                relevant -= 1
-                if not val:
-                    excluded_unvisited += 1
-                else:
-                    excluded_visited += 1
-                    covered -= 1
-            cvg[line] = None
-            patch_lines.append((line, str(val) if val is not None else "", text))
-        if len(patch_lines):
-            patches.append((src, patch_lines))
-
-        JSON["source_files"].append(
-            {
-                "name": src,
-                "source_digest": digest,
-                "coverage": cvg,
-                "functions": [functions[key] for key in sorted(functions.keys())],
-            }
+        digest, line_count = file_md5(maps[src])
+        excluded_blocks, empties = excludes.find_excl_blocks(EXCL_LIST, src, src_dir)
+        excl_stats.erase_lines(lines, excluded_blocks, empties)
+        result.append(
+            excl_stats.clean_file_report(src, digest, line_count, lines, functions)
         )
 
-    with open(args.out, "w") as j:
-        json.dump(JSON, j, sort_keys=True)
+    return result
 
-    if excluded:
-        counter_width = 0
-        for file, lines in patches:
-            for linno, count, line in lines:
-                length = len(count)
-                if length > counter_width:
-                    counter_width = length
 
-        color = "\033[2;49;30m"
-        reset = "\033[m"
+def tool():
+    base.GIT_EXECUTABLE = shutil.which("git") or "git"
 
-        # for file, lines in patches:
-        #     prev = -10
-        #     for num, counter, line in lines:
-        #         if num - prev > 1:
-        #             if os.name == "nt":
-        #                 print(
-        #                     "{}({})".format(
-        #                         os.path.abspath(os.path.join(args.src_dir, file)), num + 1
-        #                     )
-        #                 )
-        #             else:
-        #                 print("--   {}:{}".format(file, num + 1))
-        #         prev = num
-        #         print(
-        #             "     {:>{}} | {}{}{}".format(
-        #                 counter, counter_width, color, line, reset
-        #             )
-        #         )
+    args = parse_args()
+    dirs = [Path(dirname) for dirname in args.dirs.split(":")]
 
-    percentage = int(covered * 10000 / relevant + 0.5) / 100 if relevant else 0
-    print("-- Coverage reported: {}/{} ({}%)".format(covered, relevant, percentage))
+    bin_dir = Path(args.bin_dir)
 
-    if excluded:
+    flag_name = build_job_flag_name(props(bin_dir))
+    JSON = get_report_header(flag_name, parallel=True)
+    get_git_header(JSON, args.src_dir)
+    if args.debug:
+        from pprint import pprint
 
-        def counted(counter: int, when_one: str, otherwise: str):
-            if counter == 0:
-                return when_one.format(counter)
-            return otherwise.format(counter)
+        pprint(JSON)
 
-        excl_str = counted(
-            excluded_unvisited + excluded_visited, "one line", "{} lines"
-        )
-        unv_str = counted(excluded_unvisited, "one line", "{} lines")
-        print("-- Excluded relevant: {}".format(excl_str))
-        print("-- Excluded missing:  {}".format(unv_str))
-        relevant += excluded_unvisited + excluded_visited
-        covered += excluded_visited
-        percentage = int(covered * 10000 / relevant + 0.5) / 100
-        print("-- Revised coverage:  {}/{} ({}%)".format(covered, relevant, percentage))
+    cov_tool = guess_tool(
+        args.gcov,
+        args.cobertura,
+        args.merge,
+        args.target,
+        bin_dir,
+        Path(args.int_dir),
+    )
+
+    src_dir = Path(args.src_dir).absolute()
+    excl_stats = coverage_stats()
+
+    JSON["source_files"][:] = gather_coverage(
+        cov_tool,
+        src_dir=src_dir,
+        int_dir=Path(args.int_dir),
+        dirs=dirs,
+        excl_stats=excl_stats,
+    )
+
+    out = Path(args.out).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    print(f"-- Writing {out.relative_to(args.src_dir, walk_up=True)}")
+    with out.open("wb") as j:
+        text = json.dumps(JSON, ensure_ascii=False, indent=2)
+        if not text.endswith("\n"):
+            text += "\n"
+        j.write(text.encode())
+
+    excl_stats.report()
+
+
+def simple():
+    base.GIT_EXECUTABLE = shutil.which("git") or "git"
+
+    args = parse_args()
+    dirs = [Path(dirname) for dirname in args.dirs.split(":")]
+
+    bin_dir = Path(args.bin_dir)
+
+    print("-- Building simplified report for later merge")
+
+    JSON = get_base_header()
+    get_git_header(JSON, args.src_dir, only_hash=True)
+    if args.debug:
+        from pprint import pprint
+
+        pprint(JSON)
+
+    cov_tool = guess_tool(
+        args.gcov,
+        args.cobertura,
+        args.merge,
+        args.target,
+        bin_dir,
+        Path(args.int_dir),
+    )
+
+    src_dir = Path(args.src_dir).absolute()
+    excl_stats = coverage_stats()
+
+    JSON["source_files"] = gather_coverage(
+        cov_tool,
+        src_dir=src_dir,
+        int_dir=Path(args.int_dir),
+        dirs=dirs,
+        excl_stats=excl_stats,
+    )
+
+    out = Path(args.out).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    print(f"-- Writing {out.relative_to(src_dir.resolve(), walk_up=True)}")
+    with out.open("wb") as j:
+        text = json.dumps(JSON, ensure_ascii=False, indent=2)
+        if not text.endswith("\n"):
+            text += "\n"
+        j.write(text.encode())
+
+    excl_stats.report()

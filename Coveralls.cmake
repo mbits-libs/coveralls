@@ -17,24 +17,17 @@ if (${COVERALLS_PREFIX}COVERALLS)
 		set(__MSVC ON)
 	endif()
 
-	if (__CLANG)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
-	endif()
-	if (__GCC)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
-		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage -lgcov")
-		set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage -lgcov")
-	endif()
-
 	set(__DEBUG)
 	if (${COVERALLS_PREFIX}COVERALLS_DEBUG)
 		set(__DEBUG --debug)
 	endif()
-	if (NOT DEFINED ${COVERALLS_PREFIX}COVERALLS_FILE)
-		set(${COVERALLS_PREFIX}COVERALLS_FILE ${PROJECT_BINARY_DIR}/coveralls.json)
+	set(__OUTPUT)
+	if (DEFINED ${COVERALLS_PREFIX}COVERALLS_FILE)
+		set(__OUTPUT "${${COVERALLS_PREFIX}COVERALLS_FILE}")
+	else()
+		set(__OUTPUT "${PROJECT_BINARY_DIR}/coveralls.json")
 	endif()
+	message(STATUS "Coveralls output: ${__OUTPUT}")
 
 	if (NOT ${COVERALLS_PREFIX}COVERALLS_DIRS)
 		message(FATAL_ERROR "${COVERALLS_PREFIX}COVERALLS_DIRS not set. Aborting")
@@ -189,13 +182,12 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--cobertura
-				--git "${GIT_EXECUTABLE}"
 				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
 				--dirs "${JOIN_DIRS}"
-				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
+				--out "${__OUTPUT}"
 				${__DEBUG}
 				${JOIN_IGNORE_FILES}
 			DEPENDS
@@ -211,13 +203,12 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--gcov "${LLVM_COV_EXECUTABLE}"
 				--merge "${LLVM_PDATA_EXECUTABLE}"
-				--git "${GIT_EXECUTABLE}"
 				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/llvm-profiler"
 				--dirs "${JOIN_DIRS}"
-				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
+				--out "${__OUTPUT}"
 				${__DEBUG}
 				${JOIN_IGNORE_FILES}
 			DEPENDS
@@ -232,13 +223,12 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--gcov "${GCOV_EXECUTABLE}"
-				--git "${GIT_EXECUTABLE}"
 				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
 				--dirs "${JOIN_DIRS}"
-				--out "${${COVERALLS_PREFIX}COVERALLS_FILE}"
+				--out "${__OUTPUT}"
 				${__DEBUG}
 				${JOIN_IGNORE_FILES}
 			DEPENDS
@@ -260,7 +250,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 
 		add_custom_target(${COVERALLS_PREFIX}coveralls_upload
 			# Upload the JSON to coveralls.
-			COMMAND ${CURL_EXECUTABLE} -S -F "json_file=@${${COVERALLS_PREFIX}COVERALLS_FILE}" https://coveralls.io/api/v1/jobs
+			COMMAND ${CURL_EXECUTABLE} -S -F "json_file=@${__OUTPUT}" https://coveralls.io/api/v1/jobs
 
 			DEPENDS ${COVERALLS_PREFIX}coveralls_generate
 

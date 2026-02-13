@@ -1,11 +1,12 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import gzip
 import json
 import os
-import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Iterable
 
 from cov.base import BaseTool, FileInfo, FunctionDecl, LineDecl, cd, recurse
 
@@ -18,7 +19,7 @@ class Base(BaseTool):
         self.int_dir = int_dir
 
     def exclude(self):
-        return ["GCC"]
+        return ["gcc"]
 
     def preprocess(self):
         gcno_dirs: dict[Path, list[str]] = {}
@@ -36,16 +37,12 @@ class Base(BaseTool):
             )
 
             int_dir.mkdir(parents=True, exist_ok=True)
-            files = [dirname / filename for filename in gcno_dirs[dirname]]
+            files = [str(dirname / filename) for filename in gcno_dirs[dirname]]
+
             with cd(int_dir):
-                print(
-                    shlex.join(
-                        [self.gcov, "-l", "-b", "-c", "-i", "-p", "-o", dirname] + files
-                    ),
-                    file=sys.stderr,
-                )
                 p = subprocess.Popen(
-                    [self.gcov, "-l", "-b", "-c", "-i", "-p", "-o", dirname] + files,
+                    [str(self.gcov), "-l", "-b", "-c", "-i", "-p", "-o", str(dirname)]
+                    + files,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )

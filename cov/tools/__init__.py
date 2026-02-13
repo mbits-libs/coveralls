@@ -1,11 +1,13 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import sys
 from pathlib import Path
-from typing import cast
 
 from cov.base import BaseTool, run
-from cov.cobertura import CoberturaXML
-from cov.gcov import GCOV8, JSON1
-from cov.llvm import LLVM
+from cov.tools.cobertura import CoberturaXML
+from cov.tools.gcov import GCOV8, JSON1
+from cov.tools.llvm import LLVM
 
 
 def cov_version(tool: str) -> tuple[str | None, list[int]]:

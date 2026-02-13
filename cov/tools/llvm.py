@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import json
 import os
 import subprocess
@@ -150,7 +153,7 @@ class LLVM(BaseTool):
         self.int_dir = int_dir
 
     def exclude(self):
-        return ["CLANG", "Clang", "LLVM"]
+        return ["clang", "llvm"]
 
     def ext(self):
         return ".profjson"

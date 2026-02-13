@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -34,7 +37,7 @@ class CoberturaXML(BaseTool):
         self.path = path
 
     def exclude(self):
-        return ["MSVC"]
+        return ["msvc"]
 
     def preprocess(self):
         pass

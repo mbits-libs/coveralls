@@ -1,12 +1,16 @@
+# Copyright (c) 2026 Marcin Zdun
+# This code is licensed under MIT license (see LICENSE for details)
+
 import os
+import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Iterable, overload
 
-GIT_EXECUTABLE: str = ""
+GIT_EXECUTABLE = shutil.which("git") or "git"
 
 
 def run(*args):
@@ -19,20 +23,19 @@ def output(*args):
     return run(*args)[0].strip().decode("utf-8")
 
 
-def git_log_format(fmt):
-    return output(GIT_EXECUTABLE, "log", "-1", "--pretty=format:%" + fmt)
-
-
-def ENV(name: str):
-    return os.environ.get(name)
+@overload
+def ENV(name: str, /, default: None = None) -> str | None: ...
+@overload
+def ENV(name: str, /, default: str) -> str: ...
+def ENV(name: str, /, default=None):
+    return os.environ.get(name, default)
 
 
 def recurse(root: Path, ext: str) -> Iterable[Path]:
     for current, _, files in root.walk():
         for filename in files:
-            path = current / filename
-            if path.suffix == ext:
-                yield path
+            if filename.endswith(ext):
+                yield current / filename
 
 
 @contextmanager
