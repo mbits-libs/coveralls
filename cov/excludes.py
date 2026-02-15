@@ -71,7 +71,7 @@ class excludes:
             self.empties.add(line_no)
             return
 
-        has_tags = matches_start(text)
+        has_tags = matches_tags(text)
         if has_tags:
             markers = has_tags.group(1).lower().split(",")
             has_any_marker = False
