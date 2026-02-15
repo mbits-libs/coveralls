@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -205,7 +206,8 @@ class LLVM(BaseTool):
             sys.exit(1)
 
         ext = ".exe" if os.name == "nt" else ""
-        target = f"{self.target}{ext}"
+        re_ext = r"\.exe" if os.name == "nt" else ""
+        versioned_target = f"^{re.escape(self.target)}(-[0-9.]+)?{re_ext}$"
         suffix = f"-test{ext}"
         execs: list[Path] = []
 
@@ -214,7 +216,7 @@ class LLVM(BaseTool):
         for root, dirnames, filenames in bin_dir.walk():
             dirnames[:] = []
             for filename in filenames:
-                if filename == target or filename.endswith(suffix):
+                if re.match(versioned_target, filename) or filename.endswith(suffix):
                     execs.append(root / filename)
 
         for exe in execs:

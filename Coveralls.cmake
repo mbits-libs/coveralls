@@ -182,7 +182,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--cobertura
-				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
+				--target "${${COVERALLS_PREFIX}COVERALLS_TARGET}"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
@@ -203,7 +203,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--gcov "${LLVM_COV_EXECUTABLE}"
 				--merge "${LLVM_PDATA_EXECUTABLE}"
-				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
+				--target "${${COVERALLS_PREFIX}COVERALLS_TARGET}"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/llvm-profiler"
@@ -223,7 +223,7 @@ if (${COVERALLS_PREFIX}COVERALLS)
 			COMMAND ${Python3_EXECUTABLE}
 				"${CMAKE_CURRENT_LIST_DIR}/coveralls.py"
 				--gcov "${GCOV_EXECUTABLE}"
-				--target "${COVERALLS_PREFIX}COVERALLS_TARGET"
+				--target "${${COVERALLS_PREFIX}COVERALLS_TARGET}"
 				--src_dir "${PROJECT_SOURCE_DIR}"
 				--bin_dir "${PROJECT_BINARY_DIR}"
 				--int_dir "${PROJECT_BINARY_DIR}/gcov"
